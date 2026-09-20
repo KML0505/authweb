@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0b;
+    --surface: #17171a;
+    --surface-hover: #1e1e22;
+    --border: #2a2a2e;
+    --text: #f0efec;
+    --text-dim: #85858c;
+    --accent: #e8a33d;
+    --danger: #c2665f;
+    --github: #8b8b8f;
+    --google: #6f9ceb;
+    --instagram: #d97aa8;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap {
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+  header { margin-bottom: 32px; }
+  header h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
+  header p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; max-width: 38ch; }
+
+  /* Lock screen */
+  #lock-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .lock-box {
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+  }
+  .lock-icon {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 20px;
+    border: 1.5px solid var(--text-dim);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lock-icon svg { width: 18px; height: 18px; stroke: var(--text-dim); }
+  .lock-box h2 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+  .lock-box .sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 20px; line-height: 1.5; }
+  .lock-box input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    text-align: center;
+    letter-spacing: 0.1em;
+  }
+  .lock-box input:focus { outline: none; border-color: var(--accent); }
+  .lock-box button.primary {
+    width: 100%;
+    margin-top: 10px;
+    background: var(--accent);
+    color: #1a1206;
+    border: none;
+    border-radius: 8px;
+    padding: 11px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .lock-error {
+    font-size: 12px;
+    color: var(--danger);
+    margin-top: 10px;
+    min-height: 16px;
+  }
+  .lock-reset {
+    display: block;
+    margin-top: 18px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+    font-family: inherit;
+  }
+  #app { display: none; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 18px 18px 16px;
+    margin-bottom: 12px;
+    position: relative;
+    border-left: 3px solid var(--stripe, var(--border));
+    transition: background 0.15s ease;
+  }
+  .card.filled:hover { background: var(--surface-hover); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+  .service-name { font-size: 13px; font-weight: 500; color: var(--text-dim); }
+  .account-label { font-size: 12px; color: var(--text-dim); opacity: 0.7; }
+  .code-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    user-select: all;
+  }
+  .code:active { opacity: 0.7; }
+  .ring-wrap { position: relative; width: 34px; height: 34px; flex-shrink: 0; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .ring-label {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
+  }
+  .card-actions { display: flex; gap: 14px; margin-top: 10px; }
+  .card-actions button {
+    background: none; border: none; color: var(--text-dim); font-size: 12px;
+    font-family: inherit; cursor: pointer; padding: 0;
+  }
+  .card-actions button:hover { color: var(--text); }
+  .copied-tag { font-size: 11px; color: var(--accent); margin-left: 8px; opacity: 0; transition: opacity 0.2s ease; }
+  .copied-tag.show { opacity: 1; }
+
+  .add-form { margin-top: 4px; }
+  .add-form input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+    padding: 9px 11px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px; margin-top: 8px;
+  }
+  .add-form input:focus { outline: none; border-color: var(--accent); }
+  .add-form-row { display: flex; gap: 8px; margin-top: 8px; }
+  .add-form-row button {
+    background: var(--accent); color: #1a1206; border: none; border-radius: 6px;
+    padding: 7px 14px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+  .add-form-row button.secondary { background: none; border: 1px solid var(--border); color: var(--text-dim); }
+  .error-msg { font-size: 11px; color: var(--danger); margin-top: 6px; }
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; opacity: 0.8; }
+
+  .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+  .top-row header { margin-bottom: 0; }
+  #lock-btn {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 7px; padding: 6px 10px; font-size: 11px; font-family: inherit; cursor: pointer;
+    flex-shrink: 0; margin-left: 12px;
+  }
+  #lock-btn:hover { color: var(--text); }
+
+  footer { margin-top: 36px; font-size: 11px; color: var(--text-dim); line-height: 1.6; opacity: 0.75; }
+</style>
+</head>
+<body>
+
+<div id="lock-screen">
+  <div class="lock-box">
+    <div class="lock-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+        <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+      </svg>
+    </div>
+    <h2 id="lock-title">Set a password</h2>
+    <p class="sub" id="lock-sub">This locks the page on this device. It's a convenience lock, not real security — don't rely on it alone if this page is reachable from the internet.</p>
+    <input type="password" id="lock-input" placeholder="Password" autocomplete="off" />
+    <button class="primary" id="lock-submit">Continue</button>
+    <div class="lock-error" id="lock-error"></div>
+    <button class="lock-reset" id="lock-reset">Forgot it? Reset password</button>
+  </div>
+</div>
+
+<div id="app">
+<div class="wrap">
+  <div class="top-row">
+    <header>
+      <h1>Codes</h1>
+      <p>Your login codes, generated right here in the browser. Nothing you paste in below is sent anywhere.</p>
+    </header>
+    <button id="lock-btn">Lock</button>
+  </div>
+
+  <div id="cards"></div>
+
+  <footer>
+    Codes regenerate every 30 seconds, same as any authenticator app. Setup keys are held only in this tab's memory and are cleared on refresh — the password only locks the screen, it doesn't protect the secrets themselves.
+  </footer>
+</div>
+</div>
+
+<script>
+/* ---------- Lock screen ---------- */
+const PW_KEY = 'otp-app-pwhash';
+
+async function sha256Hex(str) {
+  const enc = new TextEncoder().encode(str);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hasStoredPassword() {
+  try { return !!localStorage.getItem(PW_KEY); } catch (e) { return false; }
+}
+
+function setupLockScreen() {
+  const titleEl = document.getElementById('lock-title');
+  const subEl = document.getElementById('lock-sub');
+  const input = document.getElementById('lock-input');
+  const submitBtn = document.getElementById('lock-submit');
+  const errorEl = document.getElementById('lock-error');
+  const resetBtn = document.getElementById('lock-reset');
+
+  const isSettingUp = !hasStoredPassword();
+  if (isSettingUp) {
+    titleEl.textContent = 'Set a password';
+    subEl.textContent = "This locks the page on this device. It's a convenience lock, not real security — put actual protection (like login on your server) in front of this page too.";
+    resetBtn.style.display = 'none';
+  } else {
+    titleEl.textContent = 'Enter password';
+    subEl.textContent = 'Unlock to view your codes.';
+    resetBtn.style.display = 'inline';
+  }
+
+  async function submit() {
+    const val = input.value;
+    if (!val) return;
+    if (isSettingUp) {
+      const hash = await sha256Hex(val);
+      try { localStorage.setItem(PW_KEY, hash); } catch (e) {}
+      unlock();
+    } else {
+      const hash = await sha256Hex(val);
+      let stored = null;
+      try { stored = localStorage.getItem(PW_KEY); } catch (e) {}
+      if (hash === stored) {
+        unlock();
+      } else {
+        errorEl.textContent = 'Wrong password.';
+        input.value = '';
+        input.focus();
+      }
+    }
+  }
+
+  submitBtn.addEventListener('click', submit);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  resetBtn.addEventListener('click', () => {
+    if (confirm("Reset your password? You'll set a new one now.")) {
+      try { localStorage.removeItem(PW_KEY); } catch (e) {}
+      setupLockScreen();
+      input.value = '';
+      errorEl.textContent = '';
+    }
+  });
+
+  input.focus();
+}
+
+function unlock() {
+  document.getElementById('lock-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+document.getElementById('lock-btn').addEventListener('click', () => {
+  document.getElementById('app').style.display = 'none';
+  const ls = document.getElementById('lock-screen');
+  ls.style.display = 'flex';
+  document.getElementById('lock-input').value = '';
+  document.getElementById('lock-error').textContent = '';
+  document.getElementById('lock-input').focus();
+});
+
+setupLockScreen();
+
+/* ---------- TOTP app ---------- */
+const SERVICES = [
+  { id: 'github', name: 'GitHub', stripe: 'var(--github)' },
+  { id: 'google', name: 'Google', stripe: 'var(--google)' },
+  { id: 'instagram', name: 'Instagram', stripe: 'var(--instagram)' },
+];
+
+const state = {}; // secrets: in-memory only, cleared on refresh
+
+function base32ToBytes(input) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = '';
+  for (const ch of clean) {
+    const val = alphabet.indexOf(ch);
+    if (val === -1) continue;
+    bits += val.toString(2).padStart(5, '0');
+  }
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
+  return new Uint8Array(bytes);
+}
+
+function parseOtpAuthUrl(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed.toLowerCase().startsWith('otpauth://')) {
+    throw new Error("That doesn't look like an otpauth:// setup URL.");
+  }
+  const asHttp = 'https://' + trimmed.slice('otpauth://'.length);
+  const url = new URL(asHttp);
+  const params = url.searchParams;
+  const secret = params.get('secret');
+  if (!secret) throw new Error('No secret found in that URL.');
+  const label = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+  const issuer = params.get('issuer') || label.split(':')[0] || '';
+  const algorithm = (params.get('algorithm') || 'SHA1').toUpperCase();
+  const digits = parseInt(params.get('digits') || '6', 10);
+  const period = parseInt(params.get('period') || '30', 10);
+  return { secret, label, issuer, algorithm, digits, period };
+}
+
+async function hmac(algorithm, keyBytes, msgBytes) {
+  const algoMap = { SHA1: 'SHA-1', SHA256: 'SHA-256', SHA512: 'SHA-512' };
+  const key = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'HMAC', hash: algoMap[algorithm] || 'SHA-1' },
+    false, ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
+  return new Uint8Array(sig);
+}
+
+function counterBytes(counter) {
+  const buf = new ArrayBuffer(8);
+  const view = new DataView(buf);
+  view.setUint32(4, counter >>> 0, false);
+  view.setUint32(0, Math.floor(counter / 0x100000000), false);
+  return new Uint8Array(buf);
+}
+
+async function totp(account) {
+  const period = account.period || 30;
+  const digits = account.digits || 6;
+  const counter = Math.floor(Date.now() / 1000 / period);
+  const keyBytes = base32ToBytes(account.secret);
+  const msgBytes = counterBytes(counter);
+  const h = await hmac(account.algorithm || 'SHA1', keyBytes, msgBytes);
+  const offset = h[h.length - 1] & 0xf;
+  const binCode = ((h[offset] & 0x7f) << 24) |
+                  ((h[offset + 1] & 0xff) << 16) |
+                  ((h[offset + 2] & 0xff) << 8) |
+                  (h[offset + 3] & 0xff);
+  const otp = (binCode % Math.pow(10, digits)).toString().padStart(digits, '0');
+  return otp;
+}
+
+function timeRemaining(period = 30) {
+  const now = Math.floor(Date.now() / 1000);
+  return period - (now % period);
+}
+
+function render() {
+  const container = document.getElementById('cards');
+  container.innerHTML = '';
+  SERVICES.forEach(svc => {
+    const card = document.createElement('div');
+    card.className = 'card' + (state[svc.id] ? ' filled' : '');
+    card.style.setProperty('--stripe', svc.stripe);
+
+    if (!state[svc.id] || state[svc.id].editing) {
+      card.innerHTML = `
+        <div class="card-top">
+          <span class="service-name">${svc.name}</span>
+        </div>
+        <div class="add-form">
+          <input type="text" placeholder="Paste otpauth:// setup URL" data-service="${svc.id}" />
+          <div class="add-form-row">
+            <button data-action="save" data-service="${svc.id}">Add</button>
+            ${state[svc.id] ? '<button class="secondary" data-action="cancel" data-service="' + svc.id + '">Cancel</button>' : ''}
+          </div>
+          <div class="error-msg" id="err-${svc.id}"></div>
+          <div class="hint">Find this under the account's two-factor / authenticator app setup.</div>
+        </div>
+      `;
+    } else {
+      const acc = state[svc.id];
+      const remaining = timeRemaining(acc.period);
+      const pct = remaining / (acc.period || 30);
+      const radius = 14;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference * (1 - pct);
+      card.innerHTML = `
+        <div class="card-top">
+          <span class="service-name">${svc.name}</span>
+          <span class="account-label">${acc.label || ''}</span>
+        </div>
+        <div class="code-row">
+          <span class="code" data-action="copy" data-service="${svc.id}">${acc.code || '------'}</span>
+          <div class="ring-wrap">
+            <svg width="34" height="34" viewBox="0 0 34 34">
+              <circle class="ring-bg" cx="17" cy="17" r="${radius}" />
+              <circle class="ring-fg" cx="17" cy="17" r="${radius}"
+                stroke-dasharray="${circumference}"
+                stroke-dashoffset="${offset}" />
+            </svg>
+            <div class="ring-label">${remaining}</div>
+          </div>
+        </div>
+        <div class="card-actions">
+          <button data-action="edit" data-service="${svc.id}">Replace</button>
+          <button data-action="remove" data-service="${svc.id}">Remove</button>
+          <span class="copied-tag" id="copied-${svc.id}">Copied</span>
+        </div>
+      `;
+    }
+    container.appendChild(card);
+  });
+
+  container.querySelectorAll('[data-action="save"]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.service;
+      const input = container.querySelector(`input[data-service="${id}"]`);
+      const errEl = document.getElementById(`err-${id}`);
+      try {
+        const parsed = parseOtpAuthUrl(input.value);
+        state[id] = { ...parsed, editing: false };
+        errEl.textContent = '';
+        await refreshCode(id);
+        render();
+      } catch (e) {
+        errEl.textContent = e.message;
+      }
+    });
+  });
+
+  container.querySelectorAll('[data-action="cancel"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.service;
+      if (state[id]) state[id].editing = false;
+      render();
+    });
+  });
+
+  container.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.service;
+      state[id].editing = true;
+      render();
+    });
+  });
+
+  container.querySelectorAll('[data-action="remove"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.service;
+      delete state[id];
+      render();
+    });
+  });
+
+  container.querySelectorAll('[data-action="copy"]').forEach(el => {
+    el.addEventListener('click', () => {
+      const id = el.dataset.service;
+      const acc = state[id];
+      if (!acc || !acc.code) return;
+      navigator.clipboard.writeText(acc.code).then(() => {
+        const tag = document.getElementById(`copied-${id}`);
+        if (tag) {
+          tag.classList.add('show');
+          setTimeout(() => tag.classList.remove('show'), 1200);
+        }
+      });
+    });
+  });
+}
+
+async function refreshCode(id) {
+  const acc = state[id];
+  if (!acc || acc.editing) return;
+  acc.code = await totp(acc);
+}
+
+async function tick() {
+  let needsRender = false;
+  for (const id of Object.keys(state)) {
+    const acc = state[id];
+    if (acc.editing) continue;
+    const remaining = timeRemaining(acc.period);
+    if (remaining === (acc.period || 30) || !acc.code) {
+      await refreshCode(id);
+      needsRender = true;
+    }
+  }
+  if (needsRender) {
+    render();
+  } else {
+    document.querySelectorAll('.ring-wrap').forEach((wrap, idx) => {
+      const svc = Object.keys(state).filter(id => !state[id].editing)[idx];
+      if (!svc) return;
+      const acc = state[svc];
+      const remaining = timeRemaining(acc.period);
+      const pct = remaining / (acc.period || 30);
+      const radius = 14;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference * (1 - pct);
+      const fg = wrap.querySelector('.ring-fg');
+      const label = wrap.querySelector('.ring-label');
+      if (fg) fg.setAttribute('stroke-dashoffset', offset);
+      if (label) label.textContent = remaining;
+    });
+  }
+}
+
+render();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
