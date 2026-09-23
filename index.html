@@ -3,19 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Single-File Authenticator</title>
+  <title>Authenticator</title>
   <style>
-    :root {
-      --bg: #121212;
-      --card-bg: #1e1e1e;
-      --modal-bg: #2a2a2a;
-      --accent: #3b82f6;
-      --text: #ffffff;
-      --text-sub: #a0a0a0;
-      --danger: #ef4444;
-      --border: #333333;
-    }
-
     * {
       box-sizing: border-box;
       margin: 0;
@@ -24,17 +13,23 @@
     }
 
     body {
-      background-color: var(--bg);
-      color: var(--text);
+      background-color: #0f172a;
+      color: #f8fafc;
       display: flex;
       justify-content: center;
-      padding: 1rem;
+      align-items: center;
       min-height: 100vh;
+      padding: 1rem;
     }
 
     .container {
       width: 100%;
-      max-width: 450px;
+      max-width: 400px;
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+      border: 1px solid #334155;
     }
 
     .header {
@@ -42,207 +37,231 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 1rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--border);
     }
 
     .header h1 {
       font-size: 1.25rem;
+      font-weight: 600;
     }
 
-    .header-btns button {
-      background: none;
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .icon-btn {
+      background: #334155;
       border: none;
-      color: var(--text-sub);
-      font-size: 1.2rem;
+      color: #f8fafc;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
-      margin-left: 0.5rem;
+      font-size: 1.1rem;
+      transition: background 0.2s;
     }
 
-    .header-btns button:hover {
-      color: var(--text);
+    .icon-btn:hover {
+      background: #475569;
     }
 
-    .progress-bar-container {
+    .timer-bar-container {
       width: 100%;
       height: 4px;
-      background: var(--border);
+      background: #334155;
       border-radius: 2px;
       overflow: hidden;
       margin-bottom: 1rem;
     }
 
-    .progress-bar {
+    .timer-bar {
       height: 100%;
-      background: var(--accent);
+      background: #3b82f6;
       width: 100%;
       transition: width 1s linear;
     }
 
-    .status-bar {
-      font-size: 0.8rem;
+    .status-text {
+      font-size: 0.75rem;
       margin-bottom: 1rem;
-      color: var(--text-sub);
+      color: #94a3b8;
     }
 
     .status-ok { color: #10b981; }
     .status-err { color: #ef4444; }
     .status-warn { color: #f59e0b; }
-    .status-busy { color: var(--accent); }
+    .status-busy { color: #3b82f6; }
 
     .card {
-      background: var(--card-bg);
-      border-radius: 8px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 12px;
       padding: 1rem;
       margin-bottom: 0.75rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border: 1px solid var(--border);
     }
 
-    .card-info {
+    .card-details {
       flex: 1;
     }
 
-    .account-name {
+    .account-title {
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.95rem;
+      color: #f8fafc;
     }
 
-    .issuer {
-      font-size: 0.8rem;
-      color: var(--text-sub);
+    .account-issuer {
+      font-size: 0.75rem;
+      color: #94a3b8;
       margin-bottom: 0.25rem;
     }
 
-    .code-row {
+    .code-display {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.75rem;
     }
 
-    .code {
+    .code-text {
       font-family: monospace;
-      font-size: 1.5rem;
-      letter-spacing: 2px;
-      color: var(--accent);
-      font-weight: bold;
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #38bdf8;
     }
 
-    .copy-btn {
-      background: var(--border);
-      border: none;
-      color: var(--text);
+    .copy-chip {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
       padding: 0.2rem 0.5rem;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
-      font-size: 0.75rem;
+      font-size: 0.7rem;
     }
 
-    .copy-btn:hover {
-      background: #444;
+    .copy-chip:hover {
+      background: #334155;
     }
 
-    .btn-danger {
+    .delete-btn {
       background: none;
       border: none;
-      color: var(--danger);
+      color: #ef4444;
       cursor: pointer;
-      font-size: 1.2rem;
+      font-size: 1.1rem;
+      padding: 0.2rem;
+      opacity: 0.7;
+    }
+
+    .delete-btn:hover {
+      opacity: 1;
     }
 
     .hidden {
       display: none !important;
     }
 
-    /* Lock Screen & Modals */
-    .modal-overlay {
+    .overlay {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
       display: flex;
       justify-content: center;
       align-items: center;
-      z-index: 1000;
       padding: 1rem;
+      z-index: 100;
     }
 
-    .modal {
-      background: var(--modal-bg);
-      padding: 1.5rem;
-      border-radius: 8px;
+    .modal-box {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.25rem;
       width: 100%;
-      max-width: 400px;
-      border: 1px solid var(--border);
+      max-width: 360px;
     }
 
-    .modal h2 {
-      margin-bottom: 0.5rem;
-      font-size: 1.2rem;
-    }
-
-    .modal p {
-      font-size: 0.85rem;
-      color: var(--text-sub);
-      margin-bottom: 1rem;
-    }
-
-    .input-group {
-      margin-bottom: 1rem;
-    }
-
-    .input-group label {
-      display: block;
-      font-size: 0.8rem;
-      color: var(--text-sub);
+    .modal-box h2 {
+      font-size: 1.1rem;
       margin-bottom: 0.25rem;
     }
 
-    .input-group input {
+    .modal-box p {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      margin-bottom: 1rem;
+    }
+
+    .form-group {
+      margin-bottom: 0.85rem;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-bottom: 0.25rem;
+    }
+
+    .form-group input {
       width: 100%;
-      padding: 0.6rem;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 4px;
+      padding: 0.55rem 0.75rem;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      border-radius: 6px;
       outline: none;
+      font-size: 0.9rem;
     }
 
-    .input-group input:focus {
-      border-color: var(--accent);
+    .form-group input:focus {
+      border-color: #3b82f6;
     }
 
-    .modal-actions {
+    .modal-footer {
       display: flex;
       justify-content: flex-end;
       gap: 0.5rem;
+      margin-top: 1rem;
     }
 
     .btn {
-      padding: 0.5rem 1rem;
-      border-radius: 4px;
+      padding: 0.5rem 0.85rem;
+      border-radius: 6px;
       border: none;
+      font-size: 0.85rem;
       cursor: pointer;
       font-weight: 500;
     }
 
-    .btn-primary {
-      background: var(--accent);
-      color: white;
+    .btn-main {
+      background: #3b82f6;
+      color: #ffffff;
     }
 
-    .btn-secondary {
-      background: var(--border);
-      color: var(--text);
+    .btn-main:hover {
+      background: #2563eb;
     }
 
-    .error-msg {
-      color: var(--danger);
-      font-size: 0.8rem;
+    .btn-sub {
+      background: #334155;
+      color: #f8fafc;
+    }
+
+    .btn-sub:hover {
+      background: #475569;
+    }
+
+    .error-text {
+      color: #ef4444;
+      font-size: 0.75rem;
       margin-top: 0.5rem;
     }
   </style>
@@ -250,77 +269,85 @@
 <body>
 
   <div class="container">
-    <!-- Lock Screen Modal -->
-    <div id="lock-screen" class="modal-overlay">
-      <div class="modal">
-        <h2>Authenticator Locked</h2>
-        <p id="lock-subtitle">Enter your Master Password to unlock</p>
-        <div class="input-group">
+    <!-- Lock Screen / Setup Overlay -->
+    <div id="lock-screen" class="overlay">
+      <div class="modal-box">
+        <h2 id="lock-title">Unlock Authenticator</h2>
+        <p id="lock-subtitle">Enter your Master Password to access your accounts</p>
+        
+        <div class="form-group">
           <label for="master-pass">Master Password</label>
           <input type="password" id="master-pass" placeholder="••••••••">
         </div>
-        <div id="lock-error" class="error-msg" style="display: none;"></div>
-        <div class="modal-actions" style="margin-top: 1rem;">
-          <button id="unlock-btn" class="btn btn-primary" style="width: 100%;">Unlock</button>
+
+        <div id="remote-sync-field" class="form-group hidden">
+          <label for="lock-gh-token">GitHub Token (Required to restore synced data)</label>
+          <input type="password" id="lock-gh-token" placeholder="ghp_xxxxxxxxxxxx">
+        </div>
+
+        <div id="lock-error" class="error-text" style="display: none;"></div>
+        
+        <div class="modal-footer" style="margin-top: 1rem;">
+          <button id="unlock-btn" class="btn btn-main" style="width: 100%;">Unlock / Restore</button>
         </div>
       </div>
     </div>
 
-    <!-- Main App UI -->
+    <!-- Main View -->
     <div id="app" class="hidden">
       <div class="header">
-        <h1>2FA Authenticator</h1>
-        <div class="header-btns">
-          <button id="add-btn" title="Add Account">+</button>
-          <button id="settings-btn" title="Settings">&#9881;</button>
+        <h1>Authenticator</h1>
+        <div class="header-actions">
+          <button id="add-btn" class="icon-btn" title="Add Account">+</button>
+          <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
         </div>
       </div>
 
-      <div class="progress-bar-container">
-        <div id="timer-progress" class="progress-bar"></div>
+      <div class="timer-bar-container">
+        <div id="timer-progress" class="timer-bar"></div>
       </div>
 
-      <div id="sync-status" class="status-bar">Idle</div>
+      <div id="sync-status" class="status-text">Idle</div>
 
       <div id="accounts-list"></div>
     </div>
 
     <!-- Add Account Modal -->
-    <div id="add-modal" class="modal-overlay hidden">
-      <div class="modal">
+    <div id="add-modal" class="overlay hidden">
+      <div class="modal-box">
         <h2>Add Account</h2>
         <p>Enter details or secret key manually.</p>
-        <div class="input-group">
-          <label for="acc-name">Account Name (e.g., user@gmail.com)</label>
-          <input type="text" id="acc-name" placeholder="Google">
+        <div class="form-group">
+          <label for="acc-name">Account Name</label>
+          <input type="text" id="acc-name" placeholder="e.g. Google">
         </div>
-        <div class="input-group">
+        <div class="form-group">
           <label for="acc-issuer">Issuer (Optional)</label>
-          <input type="text" id="acc-issuer" placeholder="Google">
+          <input type="text" id="acc-issuer" placeholder="user@gmail.com">
         </div>
-        <div class="input-group">
+        <div class="form-group">
           <label for="acc-secret">Secret Key (Base32)</label>
           <input type="text" id="acc-secret" placeholder="JBSWY3DPEHPK3PXP">
         </div>
-        <div class="modal-actions">
-          <button id="cancel-add" class="btn btn-secondary">Cancel</button>
-          <button id="save-account" class="btn btn-primary">Save Account</button>
+        <div class="modal-footer">
+          <button id="cancel-add" class="btn btn-sub">Cancel</button>
+          <button id="save-account" class="btn btn-main">Save Account</button>
         </div>
       </div>
     </div>
 
     <!-- Settings Modal -->
-    <div id="settings-modal" class="modal-overlay hidden">
-      <div class="modal">
+    <div id="settings-modal" class="overlay hidden">
+      <div class="modal-box">
         <h2>Sync Settings</h2>
-        <p>Set a GitHub Personal Access Token to sync via Gist.</p>
-        <div class="input-group">
+        <p>Set a GitHub Personal Access Token to sync via Gist across all browser profiles and devices.</p>
+        <div class="form-group">
           <label for="gh-token-input">GitHub Token (gist scope)</label>
           <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxx">
         </div>
-        <div class="modal-actions">
-          <button id="close-settings" class="btn btn-secondary">Cancel</button>
-          <button id="save-settings" class="btn btn-primary">Save Settings</button>
+        <div class="modal-footer">
+          <button id="close-settings" class="btn btn-sub">Cancel</button>
+          <button id="save-settings" class="btn btn-main">Save Settings</button>
         </div>
       </div>
     </div>
@@ -427,28 +454,55 @@
     async function initLockScreen() {
       const cached = getLocalVault();
       const isFirstTime = !cached;
-      document.getElementById('lock-subtitle').innerText = isFirstTime 
-        ? 'Create a Master Password to encrypt your vault' 
-        : 'Enter your Master Password to unlock';
-      
+
+      if (isFirstTime) {
+        document.getElementById('lock-title').innerText = 'Setup or Sync Authenticator';
+        document.getElementById('lock-subtitle').innerText = 'Enter your Master Password. If syncing from another profile, also provide your GitHub Token.';
+        document.getElementById('remote-sync-field').classList.remove('hidden');
+      } else {
+        document.getElementById('lock-title').innerText = 'Unlock Authenticator';
+        document.getElementById('lock-subtitle').innerText = 'Enter your Master Password to unlock';
+        document.getElementById('remote-sync-field').classList.add('hidden');
+      }
+
       document.getElementById('unlock-btn').onclick = async () => {
         const val = document.getElementById('master-pass').value;
+        const inputToken = document.getElementById('lock-gh-token').value.trim();
         const err = document.getElementById('lock-error');
         err.style.display = 'none';
         if (!val) return;
 
         try {
           if (isFirstTime) {
+            if (inputToken) {
+              // Attempt to restore remote vault in new Chrome profile
+              const remote = await fetchRemoteVault(inputToken);
+              if (remote) {
+                currentSalt = remote.salt;
+                currentCanary = remote.canary;
+                const { key } = await deriveKey(val, currentSalt);
+                const check = await decryptString(key, currentCanary);
+                if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
+
+                cryptoKey = key;
+                accounts = JSON.parse(await decryptString(cryptoKey, remote.accounts));
+                ghToken = inputToken;
+                cacheVaultLocally(remote);
+                await unlock();
+                return;
+              }
+            }
+
+            // Otherwise initialize fresh empty vault
             const { key, saltBase64 } = await deriveKey(val, null);
             currentSalt = saltBase64;
             currentCanary = await encryptString(key, CANARY_PLAINTEXT);
             cryptoKey = key;
             accounts = [];
-            ghToken = '';
+            ghToken = inputToken || '';
             await saveAccountsAndSync();
             await unlock();
           } else {
-            // FIX: Keep currentSalt and currentCanary globally assigned
             currentSalt = cached.salt;
             currentCanary = cached.canary;
             
@@ -457,8 +511,7 @@
             if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
             
             cryptoKey = key;
-            const json = await decryptString(cryptoKey, cached.accounts);
-            accounts = JSON.parse(json);
+            accounts = JSON.parse(await decryptString(cryptoKey, cached.accounts));
             
             if (cached.token) {
               ghToken = await decryptString(cryptoKey, cached.token);
@@ -470,7 +523,7 @@
         } catch (e) {
           console.error(e);
           err.style.display = 'block';
-          err.innerText = 'Incorrect password or corrupted vault';
+          err.innerText = 'Incorrect password, invalid token, or corrupted vault';
         }
       };
     }
@@ -483,7 +536,7 @@
       startTimer();
 
       if (ghToken) {
-        setSyncStatus('busy', 'Checking GitHub for updates...');
+        setSyncStatus('busy', 'Syncing with GitHub...');
         try {
           const remote = await fetchRemoteVault(ghToken);
           if (remote) {
@@ -500,14 +553,12 @@
           setSyncStatus('err', 'GitHub fetch failed — using local copy');
         }
       } else {
-        setSyncStatus('warn', 'Local only (No GitHub token set)');
+        setSyncStatus('warn', 'Local only (Add GitHub Token in Settings to sync profiles)');
       }
     }
 
     async function saveAccountsAndSync() {
-      // FIX: Guard against null salt or key states
       if (!currentSalt || !currentCanary || !cryptoKey) {
-        console.error('Critical error: Missing crypto salt, canary, or key.');
         setSyncStatus('err', 'Failed to save: Session state invalid. Re-lock app.');
         return;
       }
@@ -521,16 +572,16 @@
       setSyncStatus('busy', 'Saving...');
       
       if (!ghToken) {
-        setSyncStatus('warn', 'Saved locally only (No GitHub token set)');
+        setSyncStatus('warn', 'Saved locally only (Add GitHub Token to share across profiles)');
         return;
       }
       
       try {
         await pushVaultToGithub(vaultObj, ghToken);
-        setSyncStatus('ok', 'Synced across all devices');
+        setSyncStatus('ok', 'Synced across all profiles');
       } catch (e) {
         console.error(e);
-        setSyncStatus('err', 'GitHub sync failed — saved on this device only');
+        setSyncStatus('err', 'GitHub sync failed — saved on this profile only');
       }
     }
 
@@ -580,7 +631,7 @@
       const list = document.getElementById('accounts-list');
       list.innerHTML = '';
       if (accounts.length === 0) {
-        list.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 2rem;">No accounts yet. Click "+" to add one.</div>`;
+        list.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 2rem; font-size: 0.85rem;">No accounts yet. Click "+" to add one.</div>`;
         return;
       }
       for (let i = 0; i < accounts.length; i++) {
@@ -589,15 +640,15 @@
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
-          <div class="card-info">
-            <div class="account-name">${escapeHtml(acc.name)}</div>
-            <div class="issuer">${escapeHtml(acc.issuer || '')}</div>
-            <div class="code-row">
-              <span class="code">${code.slice(0, 3)} ${code.slice(3)}</span>
-              <button class="copy-btn" onclick="copyCode('${code}', this)">Copy</button>
+          <div class="card-details">
+            <div class="account-title">${escapeHtml(acc.name)}</div>
+            <div class="account-issuer">${escapeHtml(acc.issuer || '')}</div>
+            <div class="code-display">
+              <span class="code-text">${code.slice(0, 3)} ${code.slice(3)}</span>
+              <button class="copy-chip" onclick="copyCode('${code}', this)">Copy</button>
             </div>
           </div>
-          <button class="btn-danger" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;" onclick="deleteAccount(${i})">&times;</button>
+          <button class="delete-btn" onclick="deleteAccount(${i})">&times;</button>
         `;
         list.appendChild(card);
       }
@@ -632,14 +683,13 @@
     function setSyncStatus(type, msg) {
       const el = document.getElementById('sync-status');
       el.innerText = msg;
-      el.className = 'status-' + type;
+      el.className = 'status-text status-' + type;
     }
 
     function escapeHtml(str) {
       return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
     }
 
-    // Event Handlers
     document.getElementById('add-btn').onclick = () => {
       document.getElementById('add-modal').classList.remove('hidden');
     };
