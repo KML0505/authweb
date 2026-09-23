@@ -147,7 +147,7 @@ const LOCAL_VAULT_KEY = 'otp-vault-cache';
 const CANARY_PLAINTEXT = 'otp-app-canary-v1';
 
 let cryptoKey = null;
-let ghToken = null; // Decrypted from vault or entered at setup
+let ghToken = null; 
 let currentSha = null;
 let accounts = [];
 let showingAddForm = false;
@@ -324,7 +324,7 @@ async function initLockScreen() {
         accounts = [];
 
         await saveAccountsAndSync();
-        unlock();
+        await unlock();
       } else {
         currentSalt = vault.salt;
         currentCanary = vault.canary;
@@ -341,7 +341,7 @@ async function initLockScreen() {
         }
         
         cacheVaultLocally(vault);
-        unlock();
+        await unlock();
       }
     } catch (e) {
       errorEl.textContent = e.message === 'mismatch' ? 'Wrong password.' : e.message;
@@ -365,10 +365,15 @@ async function initLockScreen() {
   input.focus();
 }
 
-function unlock() {
+async function unlock() {
   document.getElementById('lock-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   setSyncStatus(ghToken ? 'ok' : 'err', ghToken ? 'Synced with GitHub' : 'No token found in vault');
+  
+  // Pre-generate TOTP codes for all existing accounts on launch
+  for (const acc of accounts) {
+    await refreshCode(acc.id);
+  }
   render();
 }
 
@@ -387,6 +392,7 @@ function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
 function base32ToBytes(input) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  // Strip all non-base32 chars including spaces, hyphens, and force uppercase
   const clean = (input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
   let bits = '';
   for (const ch of clean) {
@@ -412,6 +418,7 @@ function parseOtpAuthUrl(raw) {
     const rawLabel = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
     let issuer = params.get('issuer') || '';
     let account = rawLabel;
+    
     if (rawLabel.includes(':')) {
       const parts = rawLabel.split(':');
       if (!issuer) issuer = parts[0];
@@ -562,7 +569,7 @@ function wireEvents(container) {
   container.querySelectorAll('[data-action="copy"]').forEach(el => {
     el.addEventListener('click', () => {
       const acc = accounts.find(a => a.id === el.dataset.id);
-      if (!acc || !acc.code || acc.code === 'ERROR') return;
+      if (!acc || !acc.code || acc.code === 'ERROR' || acc.code === 'INVALID') return;
       navigator.clipboard.writeText(acc.code).then(() => {
         const tag = document.getElementById(`copied-${acc.id}`);
         if (tag) { tag.classList.add('show'); setTimeout(() => tag.classList.remove('show'), 1200); }
@@ -592,8 +599,9 @@ function wireEvents(container) {
           parsed.secret = rawSecret;
         }
 
-        // Sanitize secret key: strip spaces, dashes, and ensure uppercase
-        parsed.secret = parsed.secret.toUpperCase().replace(/[\s-]/g, '');
+        // Clean spaces/hyphens and force upper case for standard Base32 validation
+        parsed.secret = parsed.secret.toUpperCase().replace(/[^A-Z2-7]/g, '');
+        if (!parsed.secret) throw new Error('Invalid setup key. Ensure key only contains valid Base32 characters.');
 
         parsed.issuer = customIssuer || parsed.issuer || 'Account';
         parsed.label = customLabel || parsed.label || '';
@@ -601,6 +609,7 @@ function wireEvents(container) {
 
         accounts.push(parsed);
         showingAddForm = false;
+        
         await refreshCode(parsed.id);
         await saveAccountsAndSync();
         render();
