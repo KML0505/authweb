@@ -1,355 +1,685 @@
-<script>
-  let cryptoKey = null;
-  let accounts = [];
-  let ghToken = '';
-  let currentSalt = null;
-  let currentCanary = null;
-  const CANARY_PLAINTEXT = 'authenticator-canary-v1';
-
-  async function deriveKey(pass, saltBase64) {
-    let salt;
-    if (saltBase64) {
-      salt = Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0));
-    } else {
-      salt = window.crypto.getRandomValues(new Uint8Array(16));
-    }
-    const enc = new TextEncoder();
-    const rawKey = await window.crypto.subtle.importKey(
-      'raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']
-    );
-    const key = await window.crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-      rawKey,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    );
-    return { key, saltBase64: btoa(String.fromCharCode(...salt)) };
-  }
-
-  async function encryptString(key, str) {
-    const enc = new TextEncoder();
-    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-    const ct = await window.crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv }, key, enc.encode(str)
-    );
-    const combined = new Uint8Array(iv.length + ct.byteLength);
-    combined.set(iv, 0);
-    combined.set(new Uint8Array(ct), iv.length);
-    return btoa(String.fromCharCode(...combined));
-  }
-
-  async function decryptString(key, b64) {
-    const data = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const iv = data.slice(0, 12);
-    const ct = data.slice(12);
-    const pt = await window.crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv }, key, ct
-    );
-    return new TextDecoder().decode(pt);
-  }
-
-  function cacheVaultLocally(vaultObj) {
-    localStorage.setItem('auth_vault_cache', JSON.stringify(vaultObj));
-  }
-
-  function getLocalVault() {
-    const raw = localStorage.getItem('auth_vault_cache');
-    return raw ? JSON.parse(raw) : null;
-  }
-
-  async function fetchRemoteVault(token) {
-    const res = await fetch('https://api.github.com/gists', {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    if (!res.ok) throw new Error('GitHub API error');
-    const gists = await res.json();
-    const gist = gists.find(g => g.files && g.files['vault.json']);
-    if (!gist) return null;
-    const content = gist.files['vault.json'].content;
-    return JSON.parse(content);
-  }
-
-  async function pushVaultToGithub(vaultObj, token) {
-    const res = await fetch('https://api.github.com/gists', {
-      headers: { 'Authorization': `token ${token}` }
-    });
-    const gists = await res.json();
-    const existing = gists.find(g => g.files && g.files['vault.json']);
-    const body = {
-      description: 'Authenticator Vault',
-      public: false,
-      files: { 'vault.json': { content: JSON.stringify(vaultObj) } }
-    };
-    if (existing) {
-      await fetch(`https://api.github.com/gists/${existing.id}`, {
-        method: 'PATCH',
-        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    } else {
-      await fetch('https://api.github.com/gists', {
-        method: 'POST',
-        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-    }
-  }
-
-  async function initLockScreen() {
-    const cached = getLocalVault();
-    const isFirstTime = !cached;
-    document.getElementById('lock-subtitle').innerText = isFirstTime 
-      ? 'Create a Master Password to encrypt your vault' 
-      : 'Enter your Master Password to unlock';
-    
-    document.getElementById('unlock-btn').onclick = async () => {
-      const val = document.getElementById('master-pass').value;
-      const err = document.getElementById('lock-error');
-      err.style.display = 'none';
-      if (!val) return;
-
-      try {
-        if (isFirstTime) {
-          const { key, saltBase64 } = await deriveKey(val, null);
-          currentSalt = saltBase64;
-          currentCanary = await encryptString(key, CANARY_PLAINTEXT);
-          cryptoKey = key;
-          accounts = [];
-          ghToken = '';
-          await saveAccountsAndSync();
-          await unlock();
-        } else {
-          // Assign global salt and canary so they are preserved in subsequent saves
-          currentSalt = cached.salt;
-          currentCanary = cached.canary;
-          
-          const { key } = await deriveKey(val, currentSalt);
-          const check = await decryptString(key, currentCanary);
-          if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
-          
-          cryptoKey = key;
-          const json = await decryptString(cryptoKey, cached.accounts);
-          accounts = JSON.parse(json);
-          
-          if (cached.token) {
-            ghToken = await decryptString(cryptoKey, cached.token);
-          }
-          
-          cacheVaultLocally(cached);
-          await unlock();
-        }
-      } catch (e) {
-        console.error(e);
-        err.style.display = 'block';
-        err.innerText = 'Incorrect password or corrupted vault';
-      }
-    };
-  }
-
-  async function unlock() {
-    document.getElementById('lock-screen').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('gh-token-input').value = ghToken || '';
-    renderAccounts();
-    startTimer();
-
-    if (ghToken) {
-      setSyncStatus('busy', 'Checking GitHub for updates...');
-      try {
-        const remote = await fetchRemoteVault(ghToken);
-        if (remote) {
-          currentSalt = remote.salt;
-          currentCanary = remote.canary;
-          const json = await decryptString(cryptoKey, remote.accounts);
-          accounts = JSON.parse(json);
-          cacheVaultLocally(remote);
-          renderAccounts();
-          setSyncStatus('ok', 'Synced with GitHub');
-        }
-      } catch (e) {
-        console.error(e);
-        setSyncStatus('err', 'GitHub fetch failed — using local copy');
-      }
-    } else {
-      setSyncStatus('warn', 'Local only (No GitHub token set)');
-    }
-  }
-
-  async function saveAccountsAndSync() {
-    // Safety check to prevent saving invalid or unencrypted states
-    if (!currentSalt || !currentCanary || !cryptoKey) {
-      console.error('Critical error: Missing crypto salt, canary, or key.');
-      setSyncStatus('err', 'Failed to save: Session state invalid. Re-lock app.');
-      return;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Single-File Authenticator</title>
+  <style>
+    :root {
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --modal-bg: #2a2a2a;
+      --accent: #3b82f6;
+      --text: #ffffff;
+      --text-sub: #a0a0a0;
+      --danger: #ef4444;
+      --border: #333333;
     }
 
-    const json = JSON.stringify(accounts);
-    const accountsEnc = await encryptString(cryptoKey, json);
-    const tokenEnc = ghToken ? await encryptString(cryptoKey, ghToken) : '';
-    const vaultObj = { salt: currentSalt, canary: currentCanary, token: tokenEnc, accounts: accountsEnc };
-    
-    cacheVaultLocally(vaultObj);
-    setSyncStatus('busy', 'Saving...');
-    
-    if (!ghToken) {
-      setSyncStatus('warn', 'Saved locally only (No GitHub token set)');
-      return;
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
-    
-    try {
-      await pushVaultToGithub(vaultObj, ghToken);
-      setSyncStatus('ok', 'Synced across all devices');
-    } catch (e) {
-      console.error(e);
-      setSyncStatus('err', 'GitHub sync failed — saved on this device only');
-    }
-  }
 
-  function base32ToBuf(str) {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-    let clean = str.toUpperCase().replace(/[\s=-]/g, '');
-    let bits = '';
-    for (let c of clean) {
-      let val = alphabet.indexOf(c);
-      if (val === -1) continue;
-      bits += val.toString(2).padStart(5, '0');
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 1rem;
+      min-height: 100vh;
     }
-    let bytes = [];
-    for (let i = 0; i + 8 <= bits.length; i += 8) {
-      bytes.push(parseInt(bits.substr(i, 8), 2));
-    }
-    return new Uint8Array(bytes);
-  }
 
-  async function generateTOTP(secretStr) {
-    try {
-      const keyBytes = base32ToBuf(secretStr);
-      if (keyBytes.length === 0) return 'BAD SEC';
-      const epoch = Math.floor(Date.now() / 1000);
-      const timeStep = Math.floor(epoch / 30);
-      const buf = new ArrayBuffer(8);
-      const view = new DataView(buf);
-      view.setUint32(4, timeStep, false);
-
-      const cryptoKeyTOTP = await window.crypto.subtle.importKey(
-        'raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
-      );
-      const sig = await window.crypto.subtle.sign('HMAC', cryptoKeyTOTP, buf);
-      const sigBytes = new Uint8Array(sig);
-      const offset = sigBytes[sigBytes.length - 1] & 0xf;
-      const code = ((sigBytes[offset] & 0x7f) << 24 |
-                    (sigBytes[offset + 1] & 0xff) << 16 |
-                    (sigBytes[offset + 2] & 0xff) << 8 |
-                    (sigBytes[offset + 3] & 0xff)) % 1000000;
-      return code.toString().padStart(6, '0');
-    } catch (e) {
-      return 'ERROR';
+    .container {
+      width: 100%;
+      max-width: 450px;
     }
-  }
 
-  async function renderAccounts() {
-    const list = document.getElementById('accounts-list');
-    list.innerHTML = '';
-    if (accounts.length === 0) {
-      list.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 2rem;">No accounts yet. Click "+" to add one.</div>`;
-      return;
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
     }
-    for (let i = 0; i < accounts.length; i++) {
-      const acc = accounts[i];
-      const code = await generateTOTP(acc.secret);
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML = `
-        <div class="card-info">
-          <div class="account-name">${escapeHtml(acc.name)}</div>
-          <div class="issuer">${escapeHtml(acc.issuer || '')}</div>
-          <div class="code-row">
-            <span class="code">${code.slice(0, 3)} ${code.slice(3)}</span>
-            <button class="copy-btn" onclick="copyCode('${code}', this)">Copy</button>
-          </div>
+
+    .header h1 {
+      font-size: 1.25rem;
+    }
+
+    .header-btns button {
+      background: none;
+      border: none;
+      color: var(--text-sub);
+      font-size: 1.2rem;
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+
+    .header-btns button:hover {
+      color: var(--text);
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 100%;
+      transition: width 1s linear;
+    }
+
+    .status-bar {
+      font-size: 0.8rem;
+      margin-bottom: 1rem;
+      color: var(--text-sub);
+    }
+
+    .status-ok { color: #10b981; }
+    .status-err { color: #ef4444; }
+    .status-warn { color: #f59e0b; }
+    .status-busy { color: var(--accent); }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid var(--border);
+    }
+
+    .card-info {
+      flex: 1;
+    }
+
+    .account-name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .issuer {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-bottom: 0.25rem;
+    }
+
+    .code-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .code {
+      font-family: monospace;
+      font-size: 1.5rem;
+      letter-spacing: 2px;
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .copy-btn {
+      background: var(--border);
+      border: none;
+      color: var(--text);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .copy-btn:hover {
+      background: #444;
+    }
+
+    .btn-danger {
+      background: none;
+      border: none;
+      color: var(--danger);
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Lock Screen & Modals */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      padding: 1rem;
+    }
+
+    .modal {
+      background: var(--modal-bg);
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid var(--border);
+    }
+
+    .modal h2 {
+      margin-bottom: 0.5rem;
+      font-size: 1.2rem;
+    }
+
+    .modal p {
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      margin-bottom: 1rem;
+    }
+
+    .input-group {
+      margin-bottom: 1rem;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      margin-bottom: 0.25rem;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 0.6rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 4px;
+      outline: none;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .btn {
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-secondary {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .error-msg {
+      color: var(--danger);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Lock Screen Modal -->
+    <div id="lock-screen" class="modal-overlay">
+      <div class="modal">
+        <h2>Authenticator Locked</h2>
+        <p id="lock-subtitle">Enter your Master Password to unlock</p>
+        <div class="input-group">
+          <label for="master-pass">Master Password</label>
+          <input type="password" id="master-pass" placeholder="••••••••">
         </div>
-        <button class="btn-danger" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;" onclick="deleteAccount(${i})">&times;</button>
-      `;
-      list.appendChild(card);
-    }
-  }
+        <div id="lock-error" class="error-msg" style="display: none;"></div>
+        <div class="modal-actions" style="margin-top: 1rem;">
+          <button id="unlock-btn" class="btn btn-primary" style="width: 100%;">Unlock</button>
+        </div>
+      </div>
+    </div>
 
-  function startTimer() {
-    setInterval(() => {
-      const epoch = Math.floor(Date.now() / 1000);
-      const rem = 30 - (epoch % 30);
-      document.getElementById('timer-progress').style.width = `${(rem / 30) * 100}%`;
-      if (rem === 30 || rem === 0) {
+    <!-- Main App UI -->
+    <div id="app" class="hidden">
+      <div class="header">
+        <h1>2FA Authenticator</h1>
+        <div class="header-btns">
+          <button id="add-btn" title="Add Account">+</button>
+          <button id="settings-btn" title="Settings">&#9881;</button>
+        </div>
+      </div>
+
+      <div class="progress-bar-container">
+        <div id="timer-progress" class="progress-bar"></div>
+      </div>
+
+      <div id="sync-status" class="status-bar">Idle</div>
+
+      <div id="accounts-list"></div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="add-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Add Account</h2>
+        <p>Enter details or secret key manually.</p>
+        <div class="input-group">
+          <label for="acc-name">Account Name (e.g., user@gmail.com)</label>
+          <input type="text" id="acc-name" placeholder="Google">
+        </div>
+        <div class="input-group">
+          <label for="acc-issuer">Issuer (Optional)</label>
+          <input type="text" id="acc-issuer" placeholder="Google">
+        </div>
+        <div class="input-group">
+          <label for="acc-secret">Secret Key (Base32)</label>
+          <input type="text" id="acc-secret" placeholder="JBSWY3DPEHPK3PXP">
+        </div>
+        <div class="modal-actions">
+          <button id="cancel-add" class="btn btn-secondary">Cancel</button>
+          <button id="save-account" class="btn btn-primary">Save Account</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Sync Settings</h2>
+        <p>Set a GitHub Personal Access Token to sync via Gist.</p>
+        <div class="input-group">
+          <label for="gh-token-input">GitHub Token (gist scope)</label>
+          <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxx">
+        </div>
+        <div class="modal-actions">
+          <button id="close-settings" class="btn btn-secondary">Cancel</button>
+          <button id="save-settings" class="btn btn-primary">Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let cryptoKey = null;
+    let accounts = [];
+    let ghToken = '';
+    let currentSalt = null;
+    let currentCanary = null;
+    const CANARY_PLAINTEXT = 'authenticator-canary-v1';
+
+    async function deriveKey(pass, saltBase64) {
+      let salt;
+      if (saltBase64) {
+        salt = Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0));
+      } else {
+        salt = window.crypto.getRandomValues(new Uint8Array(16));
+      }
+      const enc = new TextEncoder();
+      const rawKey = await window.crypto.subtle.importKey(
+        'raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']
+      );
+      const key = await window.crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+        rawKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+      return { key, saltBase64: btoa(String.fromCharCode(...salt)) };
+    }
+
+    async function encryptString(key, str) {
+      const enc = new TextEncoder();
+      const iv = window.crypto.getRandomValues(new Uint8Array(12));
+      const ct = await window.crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv }, key, enc.encode(str)
+      );
+      const combined = new Uint8Array(iv.length + ct.byteLength);
+      combined.set(iv, 0);
+      combined.set(new Uint8Array(ct), iv.length);
+      return btoa(String.fromCharCode(...combined));
+    }
+
+    async function decryptString(key, b64) {
+      const data = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const iv = data.slice(0, 12);
+      const ct = data.slice(12);
+      const pt = await window.crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv }, key, ct
+      );
+      return new TextDecoder().decode(pt);
+    }
+
+    function cacheVaultLocally(vaultObj) {
+      localStorage.setItem('auth_vault_cache', JSON.stringify(vaultObj));
+    }
+
+    function getLocalVault() {
+      const raw = localStorage.getItem('auth_vault_cache');
+      return raw ? JSON.parse(raw) : null;
+    }
+
+    async function fetchRemoteVault(token) {
+      const res = await fetch('https://api.github.com/gists', {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (!res.ok) throw new Error('GitHub API error');
+      const gists = await res.json();
+      const gist = gists.find(g => g.files && g.files['vault.json']);
+      if (!gist) return null;
+      const content = gist.files['vault.json'].content;
+      return JSON.parse(content);
+    }
+
+    async function pushVaultToGithub(vaultObj, token) {
+      const res = await fetch('https://api.github.com/gists', {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      const gists = await res.json();
+      const existing = gists.find(g => g.files && g.files['vault.json']);
+      const body = {
+        description: 'Authenticator Vault',
+        public: false,
+        files: { 'vault.json': { content: JSON.stringify(vaultObj) } }
+      };
+      if (existing) {
+        await fetch(`https://api.github.com/gists/${existing.id}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      } else {
+        await fetch('https://api.github.com/gists', {
+          method: 'POST',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      }
+    }
+
+    async function initLockScreen() {
+      const cached = getLocalVault();
+      const isFirstTime = !cached;
+      document.getElementById('lock-subtitle').innerText = isFirstTime 
+        ? 'Create a Master Password to encrypt your vault' 
+        : 'Enter your Master Password to unlock';
+      
+      document.getElementById('unlock-btn').onclick = async () => {
+        const val = document.getElementById('master-pass').value;
+        const err = document.getElementById('lock-error');
+        err.style.display = 'none';
+        if (!val) return;
+
+        try {
+          if (isFirstTime) {
+            const { key, saltBase64 } = await deriveKey(val, null);
+            currentSalt = saltBase64;
+            currentCanary = await encryptString(key, CANARY_PLAINTEXT);
+            cryptoKey = key;
+            accounts = [];
+            ghToken = '';
+            await saveAccountsAndSync();
+            await unlock();
+          } else {
+            // FIX: Keep currentSalt and currentCanary globally assigned
+            currentSalt = cached.salt;
+            currentCanary = cached.canary;
+            
+            const { key } = await deriveKey(val, currentSalt);
+            const check = await decryptString(key, currentCanary);
+            if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
+            
+            cryptoKey = key;
+            const json = await decryptString(cryptoKey, cached.accounts);
+            accounts = JSON.parse(json);
+            
+            if (cached.token) {
+              ghToken = await decryptString(cryptoKey, cached.token);
+            }
+            
+            cacheVaultLocally(cached);
+            await unlock();
+          }
+        } catch (e) {
+          console.error(e);
+          err.style.display = 'block';
+          err.innerText = 'Incorrect password or corrupted vault';
+        }
+      };
+    }
+
+    async function unlock() {
+      document.getElementById('lock-screen').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      document.getElementById('gh-token-input').value = ghToken || '';
+      renderAccounts();
+      startTimer();
+
+      if (ghToken) {
+        setSyncStatus('busy', 'Checking GitHub for updates...');
+        try {
+          const remote = await fetchRemoteVault(ghToken);
+          if (remote) {
+            currentSalt = remote.salt;
+            currentCanary = remote.canary;
+            const json = await decryptString(cryptoKey, remote.accounts);
+            accounts = JSON.parse(json);
+            cacheVaultLocally(remote);
+            renderAccounts();
+            setSyncStatus('ok', 'Synced with GitHub');
+          }
+        } catch (e) {
+          console.error(e);
+          setSyncStatus('err', 'GitHub fetch failed — using local copy');
+        }
+      } else {
+        setSyncStatus('warn', 'Local only (No GitHub token set)');
+      }
+    }
+
+    async function saveAccountsAndSync() {
+      // FIX: Guard against null salt or key states
+      if (!currentSalt || !currentCanary || !cryptoKey) {
+        console.error('Critical error: Missing crypto salt, canary, or key.');
+        setSyncStatus('err', 'Failed to save: Session state invalid. Re-lock app.');
+        return;
+      }
+
+      const json = JSON.stringify(accounts);
+      const accountsEnc = await encryptString(cryptoKey, json);
+      const tokenEnc = ghToken ? await encryptString(cryptoKey, ghToken) : '';
+      const vaultObj = { salt: currentSalt, canary: currentCanary, token: tokenEnc, accounts: accountsEnc };
+      
+      cacheVaultLocally(vaultObj);
+      setSyncStatus('busy', 'Saving...');
+      
+      if (!ghToken) {
+        setSyncStatus('warn', 'Saved locally only (No GitHub token set)');
+        return;
+      }
+      
+      try {
+        await pushVaultToGithub(vaultObj, ghToken);
+        setSyncStatus('ok', 'Synced across all devices');
+      } catch (e) {
+        console.error(e);
+        setSyncStatus('err', 'GitHub sync failed — saved on this device only');
+      }
+    }
+
+    function base32ToBuf(str) {
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+      let clean = str.toUpperCase().replace(/[\s=-]/g, '');
+      let bits = '';
+      for (let c of clean) {
+        let val = alphabet.indexOf(c);
+        if (val === -1) continue;
+        bits += val.toString(2).padStart(5, '0');
+      }
+      let bytes = [];
+      for (let i = 0; i + 8 <= bits.length; i += 8) {
+        bytes.push(parseInt(bits.substr(i, 8), 2));
+      }
+      return new Uint8Array(bytes);
+    }
+
+    async function generateTOTP(secretStr) {
+      try {
+        const keyBytes = base32ToBuf(secretStr);
+        if (keyBytes.length === 0) return 'BAD SEC';
+        const epoch = Math.floor(Date.now() / 1000);
+        const timeStep = Math.floor(epoch / 30);
+        const buf = new ArrayBuffer(8);
+        const view = new DataView(buf);
+        view.setUint32(4, timeStep, false);
+
+        const cryptoKeyTOTP = await window.crypto.subtle.importKey(
+          'raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
+        );
+        const sig = await window.crypto.subtle.sign('HMAC', cryptoKeyTOTP, buf);
+        const sigBytes = new Uint8Array(sig);
+        const offset = sigBytes[sigBytes.length - 1] & 0xf;
+        const code = ((sigBytes[offset] & 0x7f) << 24 |
+                      (sigBytes[offset + 1] & 0xff) << 16 |
+                      (sigBytes[offset + 2] & 0xff) << 8 |
+                      (sigBytes[offset + 3] & 0xff)) % 1000000;
+        return code.toString().padStart(6, '0');
+      } catch (e) {
+        return 'ERROR';
+      }
+    }
+
+    async function renderAccounts() {
+      const list = document.getElementById('accounts-list');
+      list.innerHTML = '';
+      if (accounts.length === 0) {
+        list.innerHTML = `<div style="text-align: center; color: var(--text-sub); padding: 2rem;">No accounts yet. Click "+" to add one.</div>`;
+        return;
+      }
+      for (let i = 0; i < accounts.length; i++) {
+        const acc = accounts[i];
+        const code = await generateTOTP(acc.secret);
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <div class="card-info">
+            <div class="account-name">${escapeHtml(acc.name)}</div>
+            <div class="issuer">${escapeHtml(acc.issuer || '')}</div>
+            <div class="code-row">
+              <span class="code">${code.slice(0, 3)} ${code.slice(3)}</span>
+              <button class="copy-btn" onclick="copyCode('${code}', this)">Copy</button>
+            </div>
+          </div>
+          <button class="btn-danger" style="padding: 0.4rem 0.6rem; font-size: 0.8rem;" onclick="deleteAccount(${i})">&times;</button>
+        `;
+        list.appendChild(card);
+      }
+    }
+
+    function startTimer() {
+      setInterval(() => {
+        const epoch = Math.floor(Date.now() / 1000);
+        const rem = 30 - (epoch % 30);
+        document.getElementById('timer-progress').style.width = `${(rem / 30) * 100}%`;
+        if (rem === 30 || rem === 0) {
+          renderAccounts();
+        }
+      }, 1000);
+    }
+
+    function copyCode(code, btn) {
+      navigator.clipboard.writeText(code);
+      const orig = btn.innerText;
+      btn.innerText = 'Copied!';
+      setTimeout(() => btn.innerText = orig, 1500);
+    }
+
+    function deleteAccount(idx) {
+      if (confirm('Are you sure you want to delete this account?')) {
+        accounts.splice(idx, 1);
+        saveAccountsAndSync();
         renderAccounts();
       }
-    }, 1000);
-  }
+    }
 
-  function copyCode(code, btn) {
-    navigator.clipboard.writeText(code);
-    const orig = btn.innerText;
-    btn.innerText = 'Copied!';
-    setTimeout(() => btn.innerText = orig, 1500);
-  }
+    function setSyncStatus(type, msg) {
+      const el = document.getElementById('sync-status');
+      el.innerText = msg;
+      el.className = 'status-' + type;
+    }
 
-  function deleteAccount(idx) {
-    if (confirm('Are you sure you want to delete this account?')) {
-      accounts.splice(idx, 1);
-      saveAccountsAndSync();
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
+    }
+
+    // Event Handlers
+    document.getElementById('add-btn').onclick = () => {
+      document.getElementById('add-modal').classList.remove('hidden');
+    };
+
+    document.getElementById('cancel-add').onclick = () => {
+      document.getElementById('add-modal').classList.add('hidden');
+    };
+
+    document.getElementById('save-account').onclick = async () => {
+      const name = document.getElementById('acc-name').value.trim();
+      const issuer = document.getElementById('acc-issuer').value.trim();
+      const secret = document.getElementById('acc-secret').value.trim().replace(/\s+/g, '');
+      if (!name || !secret) {
+        alert('Name and Secret Key are required.');
+        return;
+      }
+      accounts.push({ name, issuer, secret });
+      document.getElementById('add-modal').classList.add('hidden');
+      document.getElementById('acc-name').value = '';
+      document.getElementById('acc-issuer').value = '';
+      document.getElementById('acc-secret').value = '';
+      await saveAccountsAndSync();
       renderAccounts();
-    }
-  }
+    };
 
-  function setSyncStatus(type, msg) {
-    const el = document.getElementById('sync-status');
-    el.innerText = msg;
-    el.className = 'status-' + type;
-  }
+    document.getElementById('settings-btn').onclick = () => {
+      document.getElementById('settings-modal').classList.remove('hidden');
+    };
 
-  function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
-  }
+    document.getElementById('close-settings').onclick = () => {
+      document.getElementById('settings-modal').classList.add('hidden');
+    };
 
-  // Modals & UI Events
-  document.getElementById('add-btn').onclick = () => {
-    document.getElementById('add-modal').classList.remove('hidden');
-  };
+    document.getElementById('save-settings').onclick = async () => {
+      ghToken = document.getElementById('gh-token-input').value.trim();
+      document.getElementById('settings-modal').classList.add('hidden');
+      await saveAccountsAndSync();
+    };
 
-  document.getElementById('cancel-add').onclick = () => {
-    document.getElementById('add-modal').classList.add('hidden');
-  };
-
-  document.getElementById('save-account').onclick = async () => {
-    const name = document.getElementById('acc-name').value.trim();
-    const issuer = document.getElementById('acc-issuer').value.trim();
-    const secret = document.getElementById('acc-secret').value.trim().replace(/\s+/g, '');
-    if (!name || !secret) {
-      alert('Name and Secret Key are required.');
-      return;
-    }
-    accounts.push({ name, issuer, secret });
-    document.getElementById('add-modal').classList.add('hidden');
-    document.getElementById('acc-name').value = '';
-    document.getElementById('acc-issuer').value = '';
-    document.getElementById('acc-secret').value = '';
-    await saveAccountsAndSync();
-    renderAccounts();
-  };
-
-  document.getElementById('settings-btn').onclick = () => {
-    document.getElementById('settings-modal').classList.remove('hidden');
-  };
-
-  document.getElementById('close-settings').onclick = () => {
-    document.getElementById('settings-modal').classList.add('hidden');
-  };
-
-  document.getElementById('save-settings').onclick = async () => {
-    ghToken = document.getElementById('gh-token-input').value.trim();
-    document.getElementById('settings-modal').classList.add('hidden');
-    await saveAccountsAndSync();
-  };
-
-  window.onload = initLockScreen;
-</script>
+    window.onload = initLockScreen;
+  </script>
+</body>
+</html>
