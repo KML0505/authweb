@@ -8,35 +8,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #0a0a0b;
-    --surface: #17171a;
-    --surface-hover: #1e1e22;
-    --border: #2a2a2e;
-    --text: #f0efec;
-    --text-dim: #85858c;
-    --accent: #e8a33d;
-    --danger: #c2665f;
+    --bg: #0a0a0b; --surface: #17171a; --surface-hover: #1e1e22; --border: #2a2a2e;
+    --text: #f0efec; --text-dim: #85858c; --accent: #e8a33d; --danger: #c2665f;
   }
   * { box-sizing: border-box; }
-  html, body {
-    margin: 0; padding: 0;
-    background: var(--bg); color: var(--text);
-    font-family: 'Inter', system-ui, sans-serif;
-    min-height: 100vh;
-  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
   .wrap { max-width: 460px; margin: 0 auto; padding: 48px 20px 80px; }
-  header { margin-bottom: 0; }
   header h1 { font-size: 22px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; }
   header p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; max-width: 38ch; }
 
-  /* Lock screen */
   #lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .lock-box { width: 100%; max-width: 320px; text-align: center; }
-  .lock-icon {
-    width: 40px; height: 40px; margin: 0 auto 20px;
-    border: 1.5px solid var(--text-dim); border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-  }
+  .lock-icon { width: 40px; height: 40px; margin: 0 auto 20px; border: 1.5px solid var(--text-dim); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
   .lock-icon svg { width: 18px; height: 18px; stroke: var(--text-dim); }
   .lock-box h2 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
   .lock-box .sub { font-size: 12.5px; color: var(--text-dim); margin: 0 0 20px; line-height: 1.5; }
@@ -48,94 +31,60 @@
   .lock-box input:focus { outline: none; border-color: var(--accent); }
   .lock-box button.primary {
     width: 100%; margin-top: 10px; background: var(--accent); color: #1a1206;
-    border: none; border-radius: 8px; padding: 11px; font-size: 13px; font-weight: 600;
-    font-family: inherit; cursor: pointer;
+    border: none; border-radius: 8px; padding: 11px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
   }
+  .lock-box button.primary:disabled { opacity: 0.5; cursor: default; }
   .lock-error { font-size: 12px; color: var(--danger); margin-top: 10px; min-height: 16px; }
-  .lock-reset {
-    display: block; margin-top: 18px; font-size: 11.5px; color: var(--text-dim);
-    text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit;
-  }
+  .lock-status { font-size: 11.5px; color: var(--text-dim); margin-top: 8px; min-height: 14px; }
+  .lock-reset { display: block; margin-top: 18px; font-size: 11.5px; color: var(--text-dim); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; }
   #app { display: none; }
 
-  .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
-  #lock-btn {
-    background: none; border: 1px solid var(--border); color: var(--text-dim);
-    border-radius: 7px; padding: 6px 10px; font-size: 11px; font-family: inherit; cursor: pointer;
-    flex-shrink: 0; margin-left: 12px;
-  }
+  .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  #lock-btn { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 7px; padding: 6px 10px; font-size: 11px; font-family: inherit; cursor: pointer; flex-shrink: 0; margin-left: 12px; }
   #lock-btn:hover { color: var(--text); }
+  .sync-status { font-size: 11px; color: var(--text-dim); margin-bottom: 22px; display: flex; align-items: center; gap: 6px; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .sync-dot.ok { background: #7ec98f; }
+  .sync-dot.err { background: var(--danger); }
+  .sync-dot.busy { background: var(--accent); }
 
-  .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-    padding: 16px 16px 16px 15px; margin-bottom: 10px; position: relative;
-    border-left: 3px solid var(--stripe, var(--border));
-  }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 16px 16px 15px; margin-bottom: 10px; position: relative; border-left: 3px solid var(--stripe, var(--border)); }
   .card:hover { background: var(--surface-hover); }
   .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 2px; }
   .service-name { font-size: 13px; font-weight: 500; color: var(--text); }
   .account-label { font-size: 11.5px; color: var(--text-dim); opacity: 0.75; text-align: right; }
   .code-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
-  .code {
-    font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 500;
-    letter-spacing: 0.06em; cursor: pointer; user-select: all;
-  }
+  .code { font-family: 'IBM Plex Mono', monospace; font-size: 28px; font-weight: 500; letter-spacing: 0.06em; cursor: pointer; user-select: all; }
   .code:active { opacity: 0.7; }
   .ring-wrap { position: relative; width: 32px; height: 32px; flex-shrink: 0; }
   .ring-wrap svg { transform: rotate(-90deg); }
   .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
   .ring-fg { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
-  .ring-label {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace;
-  }
+  .ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
   .card-actions { display: flex; gap: 14px; margin-top: 8px; }
-  .card-actions button {
-    background: none; border: none; color: var(--text-dim); font-size: 11.5px;
-    font-family: inherit; cursor: pointer; padding: 0;
-  }
+  .card-actions button { background: none; border: none; color: var(--text-dim); font-size: 11.5px; font-family: inherit; cursor: pointer; padding: 0; }
   .card-actions button:hover { color: var(--text); }
   .copied-tag { font-size: 11px; color: var(--accent); margin-left: 4px; opacity: 0; transition: opacity 0.2s ease; }
   .copied-tag.show { opacity: 1; }
 
-  /* Add card */
-  .add-card {
-    border: 1.5px dashed var(--border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    cursor: pointer;
-    color: var(--text-dim);
-    background: none;
-    width: 100%;
-    font-family: inherit;
-    font-size: 13px;
-    margin-top: 4px;
-  }
+  .add-card { border: 1.5px dashed var(--border); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-dim); background: none; width: 100%; font-family: inherit; font-size: 13px; margin-top: 4px; }
   .add-card:hover { border-color: var(--accent); color: var(--text); }
-  .add-icon {
-    width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }
+  .add-icon { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid currentColor; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .add-icon svg { width: 12px; height: 12px; stroke: currentColor; }
 
   .add-form { margin-top: 4px; }
   .add-form input {
     width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
-    padding: 9px 11px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px; margin-top: 8px;
+    padding: 9px 11px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 12px; margin-top: 8px;
   }
   .add-form input:focus { outline: none; border-color: var(--accent); }
   .add-form-row { display: flex; gap: 8px; margin-top: 8px; }
-  .add-form-row button {
-    background: var(--accent); color: #1a1206; border: none; border-radius: 6px;
-    padding: 7px 14px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer;
-  }
+  .add-form-row button { background: var(--accent); color: #1a1206; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
   .add-form-row button.secondary { background: none; border: 1px solid var(--border); color: var(--text-dim); }
+  .add-form-row button:disabled { opacity: 0.5; cursor: default; }
   .error-msg { font-size: 11px; color: var(--danger); margin-top: 6px; }
   .hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; opacity: 0.8; }
+  .checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11.5px; color: var(--text-dim); }
   .empty-msg { font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
 
   footer { margin-top: 30px; font-size: 11px; color: var(--text-dim); line-height: 1.6; opacity: 0.75; }
@@ -152,10 +101,11 @@
       </svg>
     </div>
     <h2 id="lock-title">Set a password</h2>
-    <p class="sub" id="lock-sub">This password encrypts your setup keys before they're saved on this device. If you forget it, there's no way to recover what's stored — only reset and start over.</p>
+    <p class="sub" id="lock-sub">Checking for an existing vault...</p>
     <input type="password" id="lock-input" placeholder="Password" autocomplete="off" />
     <button class="primary" id="lock-submit">Continue</button>
     <div class="lock-error" id="lock-error"></div>
+    <div class="lock-status" id="lock-status"></div>
     <button class="lock-reset" id="lock-reset">Forgot it? Reset and clear everything</button>
   </div>
 </div>
@@ -165,41 +115,47 @@
   <div class="top-row">
     <header>
       <h1>Codes</h1>
-      <p>Generated right here in the browser. Setup keys are encrypted with your password before they're saved.</p>
+      <p>Generated right here in the browser. Setup keys are encrypted before being saved.</p>
     </header>
     <button id="lock-btn">Lock</button>
   </div>
+  <div class="sync-status" id="sync-status"><span class="sync-dot" id="sync-dot"></span><span id="sync-text">Not synced</span></div>
 
-  <div id="cards" style="margin-top: 24px;"></div>
+  <div id="cards"></div>
 
   <button class="add-card" id="add-account-btn">
-    <span class="add-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-    </span>
+    <span class="add-icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
     Add account
   </button>
 
   <footer>
-    Codes regenerate every 30 seconds, same as any authenticator app. Your setup keys are encrypted (AES-GCM, key derived from your password) before being saved on this device — never sent anywhere.
+    Codes regenerate every 30 seconds. Your setup keys are encrypted (AES-GCM, key derived from your password) before being saved to your GitHub repo, so any computer can load them &mdash; but only your password can decrypt them.
   </footer>
 </div>
 </div>
 
 <script>
-/* ===================== Crypto: password-derived encryption ===================== */
-const SALT_KEY = 'otp-salt';
-const CANARY_KEY = 'otp-canary';
-const ACCOUNTS_KEY = 'otp-accounts-enc';
+/* ===================== Config ===================== */
+const GH_OWNER = 'kml0505';
+const GH_REPO = 'authweb';
+const GH_BRANCH = 'main';
+const VAULT_PATH = 'vault.json';
+const RAW_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_BRANCH}/${VAULT_PATH}`;
+const API_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${VAULT_PATH}`;
+
+const LOCAL_VAULT_KEY = 'otp-vault-cache';
+const LOCAL_TOKEN_KEY = 'otp-gh-token-enc';
 const CANARY_PLAINTEXT = 'otp-app-canary-v1';
 
-let cryptoKey = null; // CryptoKey, held only in memory after unlock
+let cryptoKey = null;
+let ghToken = null; // in memory only unless remembered (then stored encrypted)
+let currentSha = null; // GitHub file SHA, needed to update the file
+let accounts = [];
+let showingAddForm = false;
 
-function bufToB64(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
-}
-function b64ToBuf(b64) {
-  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
-}
+/* ===================== Crypto helpers ===================== */
+function bufToB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function b64ToBuf(b64) { return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer; }
 
 async function deriveKey(password, saltB64) {
   const salt = b64ToBuf(saltB64);
@@ -207,20 +163,15 @@ async function deriveKey(password, saltB64) {
   const baseKey = await crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
     { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
-    baseKey,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
+    baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   );
 }
-
 async function encryptString(key, plaintext) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const enc = new TextEncoder().encode(plaintext);
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc);
-  return bufToB64(iv) + '.' + bufToB64(ciphertext);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc);
+  return bufToB64(iv) + '.' + bufToB64(ct);
 }
-
 async function decryptString(key, packed) {
   const [ivB64, ctB64] = packed.split('.');
   const iv = new Uint8Array(b64ToBuf(ivB64));
@@ -229,49 +180,128 @@ async function decryptString(key, packed) {
   return new TextDecoder().decode(plainBuf);
 }
 
-function hasExistingVault() {
-  try { return !!localStorage.getItem(SALT_KEY); } catch (e) { return false; }
-}
-
-async function saveAccountsEncrypted() {
-  const json = JSON.stringify(accounts);
-  const packed = await encryptString(cryptoKey, json);
-  try { localStorage.setItem(ACCOUNTS_KEY, packed); } catch (e) {}
-}
-
-async function loadAccountsDecrypted() {
-  let packed = null;
-  try { packed = localStorage.getItem(ACCOUNTS_KEY); } catch (e) {}
-  if (!packed) return [];
+/* ===================== Vault fetch/save ===================== */
+async function fetchRemoteVault() {
   try {
-    const json = await decryptString(cryptoKey, packed);
-    return JSON.parse(json);
+    const res = await fetch(RAW_URL, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data; // { salt, canary, accounts }
   } catch (e) {
-    return [];
+    return null;
   }
 }
 
+async function fetchRemoteMeta(token) {
+  // Gets the current file SHA (needed to update). Uses the API so it works even before caching.
+  try {
+    const res = await fetch(API_URL + `?ref=${GH_BRANCH}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    });
+    if (res.status === 404) return { exists: false, sha: null };
+    if (!res.ok) throw new Error('meta fetch failed');
+    const data = await res.json();
+    return { exists: true, sha: data.sha };
+  } catch (e) {
+    return { exists: false, sha: null, error: true };
+  }
+}
+
+async function pushVaultToGithub(vaultObj, token) {
+  const meta = await fetchRemoteMeta(token);
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(vaultObj, null, 2))));
+  const body = {
+    message: 'Update OTP vault',
+    content,
+    branch: GH_BRANCH,
+  };
+  if (meta.sha) body.sha = meta.sha;
+  const res = await fetch(API_URL, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'GitHub save failed');
+  }
+  const result = await res.json();
+  currentSha = result.content ? result.content.sha : null;
+  return true;
+}
+
+function cacheVaultLocally(vaultObj) {
+  try { localStorage.setItem(LOCAL_VAULT_KEY, JSON.stringify(vaultObj)); } catch (e) {}
+}
+function loadCachedVault() {
+  try {
+    const raw = localStorage.getItem(LOCAL_VAULT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+async function saveAccountsAndSync() {
+  const json = JSON.stringify(accounts);
+  const accountsEnc = await encryptString(cryptoKey, json);
+  const vaultObj = { salt: currentSalt, canary: currentCanary, accounts: accountsEnc };
+  cacheVaultLocally(vaultObj);
+  setSyncStatus('busy', 'Saving...');
+  if (!ghToken) {
+    setSyncStatus('err', 'Not saved to GitHub (no token) — saved on this device only');
+    return;
+  }
+  try {
+    await pushVaultToGithub(vaultObj, ghToken);
+    setSyncStatus('ok', 'Synced to GitHub');
+  } catch (e) {
+    setSyncStatus('err', 'GitHub save failed — saved on this device only');
+  }
+}
+
+function setSyncStatus(state, text) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state ? ' ' + state : '');
+  txt.textContent = text;
+}
+
 /* ===================== Lock screen flow ===================== */
-function setupLockScreen() {
+let currentSalt = null;
+let currentCanary = null;
+
+async function initLockScreen() {
   const titleEl = document.getElementById('lock-title');
   const subEl = document.getElementById('lock-sub');
   const input = document.getElementById('lock-input');
   const submitBtn = document.getElementById('lock-submit');
   const errorEl = document.getElementById('lock-error');
+  const statusEl = document.getElementById('lock-status');
   const resetBtn = document.getElementById('lock-reset');
 
-  const isFirstTime = !hasExistingVault();
+  errorEl.textContent = '';
+  statusEl.textContent = 'Checking for an existing vault on GitHub...';
+  input.value = '';
+  submitBtn.disabled = true;
+
+  let vault = await fetchRemoteVault();
+  let fromRemote = !!vault;
+  if (!vault) vault = loadCachedVault();
+
+  submitBtn.disabled = false;
+  const isFirstTime = !vault;
+
   if (isFirstTime) {
     titleEl.textContent = 'Set a password';
-    subEl.textContent = "This password encrypts your setup keys before they're saved on this device. If you forget it, there's no way to recover what's stored — only reset and start over.";
+    subEl.textContent = "No vault found yet. This password will encrypt your setup keys before they're saved.";
+    statusEl.textContent = '';
     resetBtn.style.display = 'none';
   } else {
     titleEl.textContent = 'Enter password';
     subEl.textContent = 'Unlock to view and decrypt your saved codes.';
+    statusEl.textContent = fromRemote ? 'Vault loaded from GitHub.' : 'Using locally cached vault (GitHub unreachable).';
     resetBtn.style.display = 'inline';
   }
-  errorEl.textContent = '';
-  input.value = '';
 
   async function submit() {
     const val = input.value;
@@ -280,22 +310,23 @@ function setupLockScreen() {
     try {
       if (isFirstTime) {
         const salt = crypto.getRandomValues(new Uint8Array(16));
-        const saltB64 = bufToB64(salt);
-        try { localStorage.setItem(SALT_KEY, saltB64); } catch (e) {}
-        cryptoKey = await deriveKey(val, saltB64);
-        const canary = await encryptString(cryptoKey, CANARY_PLAINTEXT);
-        try { localStorage.setItem(CANARY_KEY, canary); } catch (e) {}
+        currentSalt = bufToB64(salt);
+        cryptoKey = await deriveKey(val, currentSalt);
+        currentCanary = await encryptString(cryptoKey, CANARY_PLAINTEXT);
         accounts = [];
-        await saveAccountsEncrypted();
+        cacheVaultLocally({ salt: currentSalt, canary: currentCanary, accounts: await encryptString(cryptoKey, '[]') });
         unlock();
       } else {
-        const saltB64 = localStorage.getItem(SALT_KEY);
-        const key = await deriveKey(val, saltB64);
-        const canary = localStorage.getItem(CANARY_KEY);
-        const check = await decryptString(key, canary); // throws if wrong password
+        currentSalt = vault.salt;
+        currentCanary = vault.canary;
+        const key = await deriveKey(val, currentSalt);
+        const check = await decryptString(key, currentCanary);
         if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
         cryptoKey = key;
-        accounts = await loadAccountsDecrypted();
+        const json = await decryptString(cryptoKey, vault.accounts);
+        accounts = JSON.parse(json);
+        cacheVaultLocally(vault);
+        await tryLoadSavedToken();
         unlock();
       }
     } catch (e) {
@@ -306,42 +337,47 @@ function setupLockScreen() {
     submitBtn.disabled = false;
   }
 
-  submitBtn.addEventListener('click', submit);
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
-  resetBtn.addEventListener('click', () => {
-    if (confirm('This permanently deletes all saved setup keys on this device. Continue?')) {
+  submitBtn.onclick = submit;
+  input.onkeydown = e => { if (e.key === 'Enter') submit(); };
+  resetBtn.onclick = () => {
+    if (confirm('This clears the locally cached vault on this device. Your GitHub-stored vault is NOT deleted automatically — delete vault.json from your repo manually if you want it fully gone. Continue?')) {
       try {
-        localStorage.removeItem(SALT_KEY);
-        localStorage.removeItem(CANARY_KEY);
-        localStorage.removeItem(ACCOUNTS_KEY);
+        localStorage.removeItem(LOCAL_VAULT_KEY);
+        localStorage.removeItem(LOCAL_TOKEN_KEY);
       } catch (e) {}
-      setupLockScreen();
+      initLockScreen();
     }
-  });
+  };
 
   input.focus();
+}
+
+async function tryLoadSavedToken() {
+  try {
+    const enc = localStorage.getItem(LOCAL_TOKEN_KEY);
+    if (enc && cryptoKey) {
+      ghToken = await decryptString(cryptoKey, enc);
+    }
+  } catch (e) { ghToken = null; }
 }
 
 function unlock() {
   document.getElementById('lock-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
+  setSyncStatus(ghToken ? '' : '', ghToken ? 'Ready to sync' : 'No GitHub token on this device yet');
   render();
 }
 
 document.getElementById('lock-btn').addEventListener('click', () => {
-  cryptoKey = null;
+  cryptoKey = null; ghToken = null; currentSha = null;
   document.getElementById('app').style.display = 'none';
-  const ls = document.getElementById('lock-screen');
-  ls.style.display = 'flex';
-  setupLockScreen();
+  document.getElementById('lock-screen').style.display = 'flex';
+  initLockScreen();
 });
 
-setupLockScreen();
+initLockScreen();
 
 /* ===================== TOTP logic ===================== */
-let accounts = []; // decrypted in memory only: [{id, secret, label, issuer, algorithm, digits, period, code}]
-let showingAddForm = false;
-
 const PALETTE = ['#6f9ceb', '#d97aa8', '#7ec98f', '#e0a94f', '#9d8cf0', '#5fb8c9', '#d9836a'];
 function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
@@ -355,17 +391,13 @@ function base32ToBytes(input) {
     bits += val.toString(2).padStart(5, '0');
   }
   const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) {
-    bytes.push(parseInt(bits.slice(i, i + 8), 2));
-  }
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
   return new Uint8Array(bytes);
 }
 
 function parseOtpAuthUrl(raw) {
   const trimmed = raw.trim();
-  if (!trimmed.toLowerCase().startsWith('otpauth://')) {
-    throw new Error("That doesn't look like an otpauth:// setup URL.");
-  }
+  if (!trimmed.toLowerCase().startsWith('otpauth://')) throw new Error("That doesn't look like an otpauth:// setup URL.");
   const asHttp = 'https://' + trimmed.slice('otpauth://'.length);
   const url = new URL(asHttp);
   const params = url.searchParams;
@@ -388,14 +420,10 @@ function parseOtpAuthUrl(raw) {
 
 async function hmac(algorithm, keyBytes, msgBytes) {
   const algoMap = { SHA1: 'SHA-1', SHA256: 'SHA-256', SHA512: 'SHA-512' };
-  const key = await crypto.subtle.importKey(
-    'raw', keyBytes, { name: 'HMAC', hash: algoMap[algorithm] || 'SHA-1' },
-    false, ['sign']
-  );
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: algoMap[algorithm] || 'SHA-1' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
   return new Uint8Array(sig);
 }
-
 function counterBytes(counter) {
   const buf = new ArrayBuffer(8);
   const view = new DataView(buf);
@@ -403,7 +431,6 @@ function counterBytes(counter) {
   view.setUint32(0, Math.floor(counter / 0x100000000), false);
   return new Uint8Array(buf);
 }
-
 async function totp(account) {
   const period = account.period || 30;
   const digits = account.digits || 6;
@@ -412,16 +439,19 @@ async function totp(account) {
   const msgBytes = counterBytes(counter);
   const h = await hmac(account.algorithm || 'SHA1', keyBytes, msgBytes);
   const offset = h[h.length - 1] & 0xf;
-  const binCode = ((h[offset] & 0x7f) << 24) |
-                  ((h[offset + 1] & 0xff) << 16) |
-                  ((h[offset + 2] & 0xff) << 8) |
-                  (h[offset + 3] & 0xff);
+  const binCode = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
   return (binCode % Math.pow(10, digits)).toString().padStart(digits, '0');
 }
-
 function timeRemaining(period = 30) {
   const now = Math.floor(Date.now() / 1000);
   return period - (now % period);
+}
+
+/* ===================== Render ===================== */
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function render() {
@@ -432,7 +462,7 @@ function render() {
   if (accounts.length === 0 && !showingAddForm) {
     const empty = document.createElement('div');
     empty.className = 'empty-msg';
-    empty.textContent = "No accounts yet. Add one below with a setup key or otpauth:// URL.";
+    empty.textContent = 'No accounts yet. Add one below with a setup key or otpauth:// URL.';
     container.appendChild(empty);
   }
 
@@ -455,9 +485,7 @@ function render() {
         <div class="ring-wrap">
           <svg width="32" height="32" viewBox="0 0 32 32">
             <circle class="ring-bg" cx="16" cy="16" r="${radius}" />
-            <circle class="ring-fg" cx="16" cy="16" r="${radius}"
-              stroke-dasharray="${circumference}"
-              stroke-dashoffset="${offset}" />
+            <circle class="ring-fg" cx="16" cy="16" r="${radius}" stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" />
           </svg>
           <div class="ring-label">${remaining}</div>
         </div>
@@ -465,8 +493,7 @@ function render() {
       <div class="card-actions">
         <button data-action="remove" data-id="${acc.id}">Remove</button>
         <span class="copied-tag" id="copied-${acc.id}">Copied</span>
-      </div>
-    `;
+      </div>`;
     container.appendChild(card);
   });
 
@@ -477,14 +504,17 @@ function render() {
       <div class="card-top"><span class="service-name">Add account</span></div>
       <div class="add-form">
         <input type="text" placeholder="Setup key or otpauth:// URL" id="new-account-input" />
+        ${!ghToken ? `
+        <input type="password" placeholder="GitHub token (to save across devices)" id="new-account-token" />
+        <div class="checkbox-row"><input type="checkbox" id="remember-token" checked /><label for="remember-token">Remember token on this device</label></div>
+        ` : ''}
         <div class="add-form-row">
           <button data-action="save-new">Add</button>
           <button class="secondary" data-action="cancel-new">Cancel</button>
         </div>
         <div class="error-msg" id="new-account-error"></div>
-        <div class="hint">Paste the setup URL, or just the raw base32 setup key from the service's 2FA setup screen.</div>
-      </div>
-    `;
+        <div class="hint">${ghToken ? 'This device already has a saved token, so this syncs automatically.' : 'Paste your GitHub token so this syncs to your other devices too.'}</div>
+      </div>`;
     container.appendChild(card);
     addBtn.style.display = 'none';
     setTimeout(() => document.getElementById('new-account-input')?.focus(), 0);
@@ -495,17 +525,11 @@ function render() {
   wireEvents(container);
 }
 
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
-}
-
 function wireEvents(container) {
   container.querySelectorAll('[data-action="remove"]').forEach(btn => {
     btn.addEventListener('click', async () => {
       accounts = accounts.filter(a => a.id !== btn.dataset.id);
-      await saveAccountsEncrypted();
+      await saveAccountsAndSync();
       render();
     });
   });
@@ -516,10 +540,7 @@ function wireEvents(container) {
       if (!acc || !acc.code) return;
       navigator.clipboard.writeText(acc.code).then(() => {
         const tag = document.getElementById(`copied-${acc.id}`);
-        if (tag) {
-          tag.classList.add('show');
-          setTimeout(() => tag.classList.remove('show'), 1200);
-        }
+        if (tag) { tag.classList.add('show'); setTimeout(() => tag.classList.remove('show'), 1200); }
       });
     });
   });
@@ -528,6 +549,8 @@ function wireEvents(container) {
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       const input = document.getElementById('new-account-input');
+      const tokenInput = document.getElementById('new-account-token');
+      const rememberBox = document.getElementById('remember-token');
       const errEl = document.getElementById('new-account-error');
       const raw = input.value.trim();
       try {
@@ -535,15 +558,23 @@ function wireEvents(container) {
         if (raw.toLowerCase().startsWith('otpauth://')) {
           parsed = parseOtpAuthUrl(raw);
         } else {
-          // treat as a raw base32 setup key
           if (!raw) throw new Error('Enter a setup key or otpauth:// URL.');
           parsed = { secret: raw, issuer: 'Account', label: '', algorithm: 'SHA1', digits: 6, period: 30 };
         }
         parsed.id = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+
+        if (tokenInput && tokenInput.value.trim()) {
+          ghToken = tokenInput.value.trim();
+          if (rememberBox && rememberBox.checked) {
+            const encToken = await encryptString(cryptoKey, ghToken);
+            try { localStorage.setItem(LOCAL_TOKEN_KEY, encToken); } catch (e) {}
+          }
+        }
+
         accounts.push(parsed);
         showingAddForm = false;
-        await saveAccountsEncrypted();
         await refreshCode(parsed.id);
+        await saveAccountsAndSync();
         render();
       } catch (e) {
         errEl.textContent = e.message;
@@ -552,18 +583,10 @@ function wireEvents(container) {
   }
 
   const cancelBtn = container.querySelector('[data-action="cancel-new"]');
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => {
-      showingAddForm = false;
-      render();
-    });
-  }
+  if (cancelBtn) cancelBtn.addEventListener('click', () => { showingAddForm = false; render(); });
 }
 
-document.getElementById('add-account-btn').addEventListener('click', () => {
-  showingAddForm = true;
-  render();
-});
+document.getElementById('add-account-btn').addEventListener('click', () => { showingAddForm = true; render(); });
 
 async function refreshCode(id) {
   const acc = accounts.find(a => a.id === id);
@@ -576,10 +599,7 @@ async function tick() {
   let needsRender = false;
   for (const acc of accounts) {
     const remaining = timeRemaining(acc.period);
-    if (remaining === (acc.period || 30) || !acc.code) {
-      await refreshCode(acc.id);
-      needsRender = true;
-    }
+    if (remaining === (acc.period || 30) || !acc.code) { await refreshCode(acc.id); needsRender = true; }
   }
   if (needsRender) {
     render();
@@ -599,7 +619,6 @@ async function tick() {
     });
   }
 }
-
 setInterval(tick, 1000);
 </script>
 </body>
