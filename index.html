@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Authenticator</title>
+<title>Codes</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
@@ -16,20 +16,30 @@
   .wrap { max-width: 380px; margin: 0 auto; padding: 48px 20px 80px; }
 
   #lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .lock-box { width: 100%; max-width: 300px; text-align: center; }
+  .lock-box { width: 100%; max-width: 320px; text-align: center; }
   .lock-box h2 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
-  .lock-box p { font-size: 13px; color: var(--text-dim); margin: 0 0 20px; }
+  .lock-box p { font-size: 13px; color: var(--text-dim); margin: 0 0 20px; line-height: 1.4; }
   .lock-box input {
     width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 12px 14px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
-    font-size: 14px; text-align: center; margin-bottom: 10px;
+    font-size: 13px; text-align: center; margin-bottom: 10px;
   }
   .lock-box input:focus { outline: none; border-color: var(--accent); }
   .lock-box button {
     width: 100%; background: var(--accent); color: #1a1206; border: none; border-radius: 8px;
-    padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer;
+    padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 4px;
   }
+  .lock-box button.secondary { background: none; border: 1px solid var(--border); color: var(--text-dim); margin-top: 8px; }
+  .lock-box button.secondary:hover { color: var(--text); }
   .lock-error { font-size: 12px; color: var(--danger); margin-top: 10px; min-height: 16px; }
+
+  #output-box { display: none; text-align: left; margin-top: 16px; }
+  #output-box textarea {
+    width: 100%; height: 110px; background: #111113; border: 1px solid var(--border);
+    color: var(--accent); font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    padding: 10px; border-radius: 6px; resize: none; word-break: break-all;
+  }
+  .instructions { font-size: 11.5px; color: var(--text-dim); margin-top: 8px; line-height: 1.4; text-align: left; }
 
   #app { display: none; }
   header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
@@ -54,12 +64,29 @@
 <body>
 
 <div id="lock-screen">
-  <div class="lock-box">
-    <h2>Unlock Authenticators</h2>
-    <p>Enter master password</p>
-    <input type="password" id="pass-input" placeholder="Password" autocomplete="off" />
+  <div class="lock-box" id="mode-unlock">
+    <h2>Unlock Vault</h2>
+    <p>Enter your master password to decrypt 2FA codes.</p>
+    <input type="password" id="unlock-pass" placeholder="Master Password" autocomplete="off" />
     <button id="unlock-btn">Unlock</button>
-    <div class="lock-error" id="lock-error"></div>
+    <div class="lock-error" id="unlock-error"></div>
+    <button class="secondary" id="go-setup-btn">Re-configure / Setup Vault</button>
+  </div>
+
+  <div class="lock-box" id="mode-setup" style="display: none;">
+    <h2>Setup Encrypted Vault</h2>
+    <p>Create your password and enter your Base32 seed keys to generate a public-safe payload.</p>
+    <input type="password" id="setup-pass" placeholder="Master Password" autocomplete="off" />
+    <input type="text" id="setup-google" placeholder="Google Base32 Secret" autocomplete="off" />
+    <input type="text" id="setup-github" placeholder="GitHub Base32 Secret" autocomplete="off" />
+    <button id="generate-btn">Encrypt Payload</button>
+    <div class="lock-error" id="setup-error"></div>
+    
+    <div id="output-box">
+      <div class="instructions">Copy the generated code below and replace <code>ENCRYPTED_VAULT</code> in line 118 of this file:</div>
+      <textarea id="payload-output" readonly></textarea>
+      <button class="secondary" id="back-unlock-btn">Return to Unlock</button>
+    </div>
   </div>
 </div>
 
@@ -75,20 +102,78 @@
 
 <script>
 /* =========================================================================
-   1. HARDCODED ACCOUNTS & ENCRYPTED SECRETS
+   1. SAFE PUBLIC ENCRYPTED PAYLOAD
+   (Paste your generated output object here)
    ========================================================================= */
-// Replace these strings with your actual Base32 secrets from Google & GitHub.
-const STATIC_ACCOUNTS = [
-  { id: 'google', name: 'Google', secret: 'YOUR_BASE32_GOOGLE_SECRET' },
-  { id: 'github', name: 'GitHub', secret: 'YOUR_BASE32_GITHUB_SECRET' }
-];
+const ENCRYPTED_VAULT = null; 
+/* Example format once generated:
+const ENCRYPTED_VAULT = {
+  "salt": "...",
+  "iv": "...",
+  "ciphertext": "..."
+};
+*/
 
-// Salt used to derive the decryption key from your master password
-const FIXED_SALT = 'e2f90a1b8c3d4e5f'; 
+let decryptedSecrets = null;
 
 /* =========================================================================
-   2. CRYPTO & TOTP LOGIC
+   2. CRYPTO UTILITIES (PBKDF2 + AES-GCM + TOTP)
    ========================================================================= */
+function b64ToBuf(b64) {
+  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+}
+
+function bufToB64(buf) {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+}
+
+async function deriveKey(password, salt) {
+  const enc = new TextEncoder().encode(password);
+  const baseKey = await crypto.subtle.importKey('raw', enc, 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
+    baseKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+
+async function decryptVault(password) {
+  if (!ENCRYPTED_VAULT) return null;
+  try {
+    const salt = b64ToBuf(ENCRYPTED_VAULT.salt);
+    const iv = b64ToBuf(ENCRYPTED_VAULT.iv);
+    const ct = b64ToBuf(ENCRYPTED_VAULT.ciphertext);
+
+    const key = await deriveKey(password, salt);
+    const plainBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct);
+    const parsed = JSON.parse(new TextDecoder().decode(plainBuf));
+
+    if (parsed.canary !== 'VALID_VAULT_v1') return null;
+    return parsed;
+  } catch (e) {
+    return null; // Decryption failed (Wrong password)
+  }
+}
+
+async function encryptPayload(password, googleSecret, githubSecret) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(password, salt);
+
+  const payload = JSON.stringify({
+    canary: 'VALID_VAULT_v1',
+    google: googleSecret.toUpperCase().replace(/[^A-Z2-7]/g, ''),
+    github: githubSecret.toUpperCase().replace(/[^A-Z2-7]/g, '')
+  });
+
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(payload));
+
+  return {
+    salt: bufToB64(salt),
+    iv: bufToB64(iv),
+    ciphertext: bufToB64(ct)
+  };
+}
+
 function base32ToBytes(input) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
   const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
@@ -102,12 +187,6 @@ function base32ToBytes(input) {
   return new Uint8Array(bytes);
 }
 
-async function hmacSha1(keyBytes, msgBytes) {
-  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
-  const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
-  return new Uint8Array(sig);
-}
-
 async function getTotpCode(secret) {
   const counter = Math.floor(Date.now() / 1000 / 30);
   const buf = new ArrayBuffer(8);
@@ -115,35 +194,84 @@ async function getTotpCode(secret) {
   view.setUint32(4, counter, false);
   
   const keyBytes = base32ToBytes(secret);
-  const h = await hmacSha1(keyBytes, new Uint8Array(buf));
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new Uint8Array(buf));
+  const h = new Uint8Array(sig);
+
   const offset = h[h.length - 1] & 0xf;
   const bin = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
   return (bin % 1000000).toString().padStart(6, '0');
 }
 
 /* =========================================================================
-   3. APP & UI LOGIC
+   3. UI & VIEW CONTROLLERS
    ========================================================================= */
-let isUnlocked = false;
+const modeUnlock = document.getElementById('mode-unlock');
+const modeSetup = document.getElementById('mode-setup');
+
+if (!ENCRYPTED_VAULT) {
+  modeUnlock.style.display = 'none';
+  modeSetup.style.display = 'block';
+}
+
+document.getElementById('go-setup-btn').addEventListener('click', () => {
+  modeUnlock.style.display = 'none';
+  modeSetup.style.display = 'block';
+});
+
+document.getElementById('back-unlock-btn').addEventListener('click', () => {
+  modeSetup.style.display = 'none';
+  modeUnlock.style.display = 'block';
+});
+
+document.getElementById('generate-btn').addEventListener('click', async () => {
+  const pass = document.getElementById('setup-pass').value;
+  const google = document.getElementById('setup-google').value.trim();
+  const github = document.getElementById('setup-github').value.trim();
+  const errEl = document.getElementById('setup-error');
+  
+  errEl.textContent = '';
+  if (!pass || !google || !github) {
+    errEl.textContent = 'All fields are required.';
+    return;
+  }
+
+  const result = await encryptPayload(pass, google, github);
+  document.getElementById('payload-output').value = `const ENCRYPTED_VAULT = ${JSON.stringify(result, null, 2)};`;
+  document.getElementById('output-box').style.display = 'block';
+});
 
 document.getElementById('unlock-btn').addEventListener('click', unlock);
-document.getElementById('pass-input').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+document.getElementById('unlock-pass').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 document.getElementById('lock-btn').addEventListener('click', lock);
 
-function unlock() {
-  const pass = document.getElementById('pass-input').value;
-  if (!pass) return;
+async function unlock() {
+  const pass = document.getElementById('unlock-pass').value;
+  const errorEl = document.getElementById('unlock-error');
+  errorEl.textContent = '';
   
-  // Simple check for demonstration; in production, key derivation validates access
-  isUnlocked = true;
+  if (!pass) return;
+
+  const data = await decryptVault(pass);
+  if (!data) {
+    errorEl.textContent = 'Incorrect password or invalid vault.';
+    return;
+  }
+
+  decryptedSecrets = [
+    { id: 'google', name: 'Google', secret: data.google },
+    { id: 'github', name: 'GitHub', secret: data.github }
+  ];
+
   document.getElementById('lock-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
   render();
 }
 
 function lock() {
-  isUnlocked = false;
-  document.getElementById('pass-input').value = '';
+  decryptedSecrets = null;
+  document.getElementById('unlock-pass').value = '';
+  document.getElementById('unlock-error').textContent = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('lock-screen').style.display = 'flex';
 }
@@ -152,7 +280,7 @@ function render() {
   const container = document.getElementById('cards');
   container.innerHTML = '';
 
-  STATIC_ACCOUNTS.forEach(acc => {
+  decryptedSecrets.forEach(acc => {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -189,13 +317,13 @@ function render() {
 }
 
 async function updateCodes() {
-  if (!isUnlocked) return;
+  if (!decryptedSecrets) return;
   
   const secondsLeft = 30 - (Math.floor(Date.now() / 1000) % 30);
   const pct = secondsLeft / 30;
   const offset = 81.68 * (1 - pct);
 
-  for (const acc of STATIC_ACCOUNTS) {
+  for (const acc of decryptedSecrets) {
     const codeEl = document.getElementById(`code-${acc.id}`);
     const ringEl = document.getElementById(`ring-${acc.id}`);
     const timerEl = document.getElementById(`timer-${acc.id}`);
