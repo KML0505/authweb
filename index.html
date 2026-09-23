@@ -387,7 +387,7 @@ function colorFor(index) { return PALETTE[index % PALETTE.length]; }
 
 function base32ToBytes(input) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  const clean = (input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
   let bits = '';
   for (const ch of clean) {
     const val = alphabet.indexOf(ch);
@@ -402,24 +402,30 @@ function base32ToBytes(input) {
 function parseOtpAuthUrl(raw) {
   const trimmed = raw.trim();
   if (!trimmed.toLowerCase().startsWith('otpauth://')) throw new Error("Invalid otpauth:// setup URL.");
-  const asHttp = 'https://' + trimmed.slice('otpauth://'.length);
-  const url = new URL(asHttp);
-  const params = url.searchParams;
-  const secret = params.get('secret');
-  if (!secret) throw new Error('No secret key found in URL.');
-  const rawLabel = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
-  let issuer = params.get('issuer') || '';
-  let account = rawLabel;
-  if (rawLabel.includes(':')) {
-    const parts = rawLabel.split(':');
-    if (!issuer) issuer = parts[0];
-    account = parts.slice(1).join(':');
+  
+  try {
+    const url = new URL(trimmed);
+    const params = url.searchParams;
+    const secret = params.get('secret');
+    if (!secret) throw new Error('No secret key found in URL.');
+    
+    const rawLabel = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+    let issuer = params.get('issuer') || '';
+    let account = rawLabel;
+    if (rawLabel.includes(':')) {
+      const parts = rawLabel.split(':');
+      if (!issuer) issuer = parts[0];
+      account = parts.slice(1).join(':');
+    }
+    if (!issuer) issuer = account || 'Account';
+    const algorithm = (params.get('algorithm') || 'SHA1').toUpperCase();
+    const digits = parseInt(params.get('digits') || '6', 10);
+    const period = parseInt(params.get('period') || '30', 10);
+    return { secret, issuer, label: account, algorithm, digits, period };
+  } catch(e) {
+    if (e.message.includes('No secret')) throw e;
+    throw new Error('Invalid or malformed otpauth:// URL.');
   }
-  if (!issuer) issuer = account || 'Account';
-  const algorithm = (params.get('algorithm') || 'SHA1').toUpperCase();
-  const digits = parseInt(params.get('digits') || '6', 10);
-  const period = parseInt(params.get('period') || '30', 10);
-  return { secret, issuer, label: account, algorithm, digits, period };
 }
 
 async function hmac(algorithm, keyBytes, msgBytes) {
@@ -440,6 +446,7 @@ async function totp(account) {
   const digits = account.digits || 6;
   const counter = Math.floor(Date.now() / 1000 / period);
   const keyBytes = base32ToBytes(account.secret);
+  if (keyBytes.length === 0) return 'INVALID';
   const msgBytes = counterBytes(counter);
   const h = await hmac(account.algorithm || 'SHA1', keyBytes, msgBytes);
   const offset = h[h.length - 1] & 0xf;
@@ -555,7 +562,7 @@ function wireEvents(container) {
   container.querySelectorAll('[data-action="copy"]').forEach(el => {
     el.addEventListener('click', () => {
       const acc = accounts.find(a => a.id === el.dataset.id);
-      if (!acc || !acc.code) return;
+      if (!acc || !acc.code || acc.code === 'ERROR') return;
       navigator.clipboard.writeText(acc.code).then(() => {
         const tag = document.getElementById(`copied-${acc.id}`);
         if (tag) { tag.classList.add('show'); setTimeout(() => tag.classList.remove('show'), 1200); }
@@ -585,6 +592,9 @@ function wireEvents(container) {
           parsed.secret = rawSecret;
         }
 
+        // Sanitize secret key: strip spaces, dashes, and ensure uppercase
+        parsed.secret = parsed.secret.toUpperCase().replace(/[\s-]/g, '');
+
         parsed.issuer = customIssuer || parsed.issuer || 'Account';
         parsed.label = customLabel || parsed.label || '';
         parsed.id = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
@@ -609,7 +619,12 @@ document.getElementById('add-account-btn').addEventListener('click', () => { sho
 async function refreshCode(id) {
   const acc = accounts.find(a => a.id === id);
   if (!acc) return;
-  acc.code = await totp(acc);
+  try {
+    acc.code = await totp(acc);
+  } catch (e) {
+    console.error(`Failed generating TOTP for ${acc.issuer}:`, e);
+    acc.code = 'ERROR';
+  }
 }
 
 async function tick() {
