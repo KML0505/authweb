@@ -123,11 +123,21 @@ let decryptedSecrets = null;
    2. CRYPTO UTILITIES (PBKDF2 + AES-GCM + TOTP)
    ========================================================================= */
 function b64ToBuf(b64) {
-  return Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer;
+  const binStr = atob(b64);
+  const bytes = new Uint8Array(binStr.length);
+  for (let i = 0; i < binStr.length; i++) {
+    bytes[i] = binStr.charCodeAt(i);
+  }
+  return bytes.buffer;
 }
 
 function bufToB64(buf) {
-  return btoa(String.fromCharCode(...new Uint8Array(buf)));
+  const bytes = new Uint8Array(buf);
+  let binStr = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binStr += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binStr);
 }
 
 async function deriveKey(password, salt) {
