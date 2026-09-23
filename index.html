@@ -18,7 +18,7 @@
   header p { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.5; max-width: 38ch; }
 
   #lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .lock-box { width: 100%; max-width: 320px; text-align: center; }
+  .lock-box { width: 100%; max-width: 340px; text-align: center; }
   .lock-icon { width: 40px; height: 40px; margin: 0 auto 20px; border: 1.5px solid var(--text-dim); border-radius: 8px; display: flex; align-items: center; justify-content: center; }
   .lock-icon svg { width: 18px; height: 18px; stroke: var(--text-dim); }
   .lock-box h2 { font-size: 17px; font-weight: 600; margin: 0 0 6px; }
@@ -26,17 +26,17 @@
   .lock-box input {
     width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
     padding: 12px 14px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
-    font-size: 14px; text-align: center; letter-spacing: 0.1em;
+    font-size: 14px; text-align: center; letter-spacing: 0.1em; margin-bottom: 8px;
   }
   .lock-box input:focus { outline: none; border-color: var(--accent); }
   .lock-box button.primary {
-    width: 100%; margin-top: 10px; background: var(--accent); color: #1a1206;
+    width: 100%; margin-top: 6px; background: var(--accent); color: #1a1206;
     border: none; border-radius: 8px; padding: 11px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
   }
   .lock-box button.primary:disabled { opacity: 0.5; cursor: default; }
   .lock-error { font-size: 12px; color: var(--danger); margin-top: 10px; min-height: 16px; }
   .lock-status { font-size: 11.5px; color: var(--text-dim); margin-top: 8px; min-height: 14px; }
-  .lock-reset { display: block; margin-top: 18px; font-size: 11.5px; color: var(--text-dim); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; }
+  .lock-reset { display: block; margin: 18px auto 0; font-size: 11.5px; color: var(--text-dim); text-decoration: underline; cursor: pointer; background: none; border: none; font-family: inherit; }
   #app { display: none; }
 
   .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -78,13 +78,12 @@
     padding: 9px 11px; color: var(--text); font-family: 'IBM Plex Mono', monospace; font-size: 12px; margin-top: 8px;
   }
   .add-form input:focus { outline: none; border-color: var(--accent); }
-  .add-form-row { display: flex; gap: 8px; margin-top: 8px; }
+  .add-form-row { display: flex; gap: 8px; margin-top: 12px; }
   .add-form-row button { background: var(--accent); color: #1a1206; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12px; font-weight: 600; font-family: inherit; cursor: pointer; }
   .add-form-row button.secondary { background: none; border: 1px solid var(--border); color: var(--text-dim); }
   .add-form-row button:disabled { opacity: 0.5; cursor: default; }
   .error-msg { font-size: 11px; color: var(--danger); margin-top: 6px; }
-  .hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; opacity: 0.8; }
-  .checkbox-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 11.5px; color: var(--text-dim); }
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 8px; opacity: 0.8; line-height: 1.4; }
   .empty-msg { font-size: 12.5px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
 
   footer { margin-top: 30px; font-size: 11px; color: var(--text-dim); line-height: 1.6; opacity: 0.75; }
@@ -102,11 +101,12 @@
     </div>
     <h2 id="lock-title">Set a password</h2>
     <p class="sub" id="lock-sub">Checking for an existing vault...</p>
-    <input type="password" id="lock-input" placeholder="Password" autocomplete="off" />
+    <input type="password" id="lock-input" placeholder="Master Password" autocomplete="off" />
+    <input type="password" id="lock-token-input" placeholder="GitHub Personal Access Token" autocomplete="off" style="display:none;" />
     <button class="primary" id="lock-submit">Continue</button>
     <div class="lock-error" id="lock-error"></div>
     <div class="lock-status" id="lock-status"></div>
-    <button class="lock-reset" id="lock-reset">Forgot it? Reset and clear everything</button>
+    <button class="lock-reset" id="lock-reset">Reset local cache</button>
   </div>
 </div>
 
@@ -129,7 +129,7 @@
   </button>
 
   <footer>
-    Codes regenerate every 30 seconds. Your setup keys are encrypted (AES-GCM, key derived from your password) before being saved to your GitHub repo, so any computer can load them &mdash; but only your password can decrypt them.
+    Codes regenerate every 30 seconds. Setup keys and tokens are encrypted with AES-GCM before syncing to GitHub.
   </footer>
 </div>
 </div>
@@ -144,12 +144,11 @@ const RAW_URL = `https://raw.githubusercontent.com/${GH_OWNER}/${GH_REPO}/${GH_B
 const API_URL = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${VAULT_PATH}`;
 
 const LOCAL_VAULT_KEY = 'otp-vault-cache';
-const LOCAL_TOKEN_KEY = 'otp-gh-token-enc';
 const CANARY_PLAINTEXT = 'otp-app-canary-v1';
 
 let cryptoKey = null;
-let ghToken = null; // in memory only unless remembered (then stored encrypted)
-let currentSha = null; // GitHub file SHA, needed to update the file
+let ghToken = null; // Decrypted from vault or entered at setup
+let currentSha = null;
 let accounts = [];
 let showingAddForm = false;
 
@@ -173,6 +172,7 @@ async function encryptString(key, plaintext) {
   return bufToB64(iv) + '.' + bufToB64(ct);
 }
 async function decryptString(key, packed) {
+  if (!packed) return '';
   const [ivB64, ctB64] = packed.split('.');
   const iv = new Uint8Array(b64ToBuf(ivB64));
   const ct = b64ToBuf(ctB64);
@@ -183,17 +183,15 @@ async function decryptString(key, packed) {
 /* ===================== Vault fetch/save ===================== */
 async function fetchRemoteVault() {
   try {
-    const res = await fetch(RAW_URL, { cache: 'no-store' });
+    const res = await fetch(RAW_URL + '?t=' + Date.now(), { cache: 'no-store' });
     if (!res.ok) return null;
-    const data = await res.json();
-    return data; // { salt, canary, accounts }
+    return await res.json();
   } catch (e) {
     return null;
   }
 }
 
 async function fetchRemoteMeta(token) {
-  // Gets the current file SHA (needed to update). Uses the API so it works even before caching.
   try {
     const res = await fetch(API_URL + `?ref=${GH_BRANCH}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -243,18 +241,20 @@ function loadCachedVault() {
 async function saveAccountsAndSync() {
   const json = JSON.stringify(accounts);
   const accountsEnc = await encryptString(cryptoKey, json);
-  const vaultObj = { salt: currentSalt, canary: currentCanary, accounts: accountsEnc };
+  const tokenEnc = ghToken ? await encryptString(cryptoKey, ghToken) : '';
+  const vaultObj = { salt: currentSalt, canary: currentCanary, token: tokenEnc, accounts: accountsEnc };
+  
   cacheVaultLocally(vaultObj);
   setSyncStatus('busy', 'Saving...');
   if (!ghToken) {
-    setSyncStatus('err', 'Not saved to GitHub (no token) — saved on this device only');
+    setSyncStatus('err', 'Saved locally only (No GitHub token set)');
     return;
   }
   try {
     await pushVaultToGithub(vaultObj, ghToken);
-    setSyncStatus('ok', 'Synced to GitHub');
+    setSyncStatus('ok', 'Synced across all devices');
   } catch (e) {
-    setSyncStatus('err', 'GitHub save failed — saved on this device only');
+    setSyncStatus('err', 'GitHub sync failed — saved on this device only');
   }
 }
 
@@ -274,14 +274,16 @@ async function initLockScreen() {
   const titleEl = document.getElementById('lock-title');
   const subEl = document.getElementById('lock-sub');
   const input = document.getElementById('lock-input');
+  const tokenInput = document.getElementById('lock-token-input');
   const submitBtn = document.getElementById('lock-submit');
   const errorEl = document.getElementById('lock-error');
   const statusEl = document.getElementById('lock-status');
   const resetBtn = document.getElementById('lock-reset');
 
   errorEl.textContent = '';
-  statusEl.textContent = 'Checking for an existing vault on GitHub...';
+  statusEl.textContent = 'Checking for existing vault on GitHub...';
   input.value = '';
+  tokenInput.value = '';
   submitBtn.disabled = true;
 
   let vault = await fetchRemoteVault();
@@ -292,15 +294,17 @@ async function initLockScreen() {
   const isFirstTime = !vault;
 
   if (isFirstTime) {
-    titleEl.textContent = 'Set a password';
-    subEl.textContent = "No vault found yet. This password will encrypt your setup keys before they're saved.";
+    titleEl.textContent = 'Create Master Password';
+    subEl.textContent = "No vault found. Set a master password and paste your GitHub token to start.";
     statusEl.textContent = '';
+    tokenInput.style.display = 'block';
     resetBtn.style.display = 'none';
   } else {
-    titleEl.textContent = 'Enter password';
-    subEl.textContent = 'Unlock to view and decrypt your saved codes.';
-    statusEl.textContent = fromRemote ? 'Vault loaded from GitHub.' : 'Using locally cached vault (GitHub unreachable).';
-    resetBtn.style.display = 'inline';
+    titleEl.textContent = 'Enter Password';
+    subEl.textContent = 'Unlock to view and sync your 2FA codes.';
+    statusEl.textContent = fromRemote ? 'Vault loaded from GitHub.' : 'Using local vault (GitHub unreachable).';
+    tokenInput.style.display = 'none';
+    resetBtn.style.display = 'inline-block';
   }
 
   async function submit() {
@@ -309,12 +313,17 @@ async function initLockScreen() {
     submitBtn.disabled = true;
     try {
       if (isFirstTime) {
+        const tokenVal = tokenInput.value.trim();
+        if (!tokenVal) throw new Error('Please enter a GitHub access token.');
+        
         const salt = crypto.getRandomValues(new Uint8Array(16));
         currentSalt = bufToB64(salt);
         cryptoKey = await deriveKey(val, currentSalt);
         currentCanary = await encryptString(cryptoKey, CANARY_PLAINTEXT);
+        ghToken = tokenVal;
         accounts = [];
-        cacheVaultLocally({ salt: currentSalt, canary: currentCanary, accounts: await encryptString(cryptoKey, '[]') });
+
+        await saveAccountsAndSync();
         unlock();
       } else {
         currentSalt = vault.salt;
@@ -322,15 +331,20 @@ async function initLockScreen() {
         const key = await deriveKey(val, currentSalt);
         const check = await decryptString(key, currentCanary);
         if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
+        
         cryptoKey = key;
         const json = await decryptString(cryptoKey, vault.accounts);
         accounts = JSON.parse(json);
+        
+        if (vault.token) {
+          ghToken = await decryptString(cryptoKey, vault.token);
+        }
+        
         cacheVaultLocally(vault);
-        await tryLoadSavedToken();
         unlock();
       }
     } catch (e) {
-      errorEl.textContent = 'Wrong password.';
+      errorEl.textContent = e.message === 'mismatch' ? 'Wrong password.' : e.message;
       input.value = '';
       input.focus();
     }
@@ -339,12 +353,11 @@ async function initLockScreen() {
 
   submitBtn.onclick = submit;
   input.onkeydown = e => { if (e.key === 'Enter') submit(); };
+  tokenInput.onkeydown = e => { if (e.key === 'Enter') submit(); };
+  
   resetBtn.onclick = () => {
-    if (confirm('This clears the locally cached vault on this device. Your GitHub-stored vault is NOT deleted automatically — delete vault.json from your repo manually if you want it fully gone. Continue?')) {
-      try {
-        localStorage.removeItem(LOCAL_VAULT_KEY);
-        localStorage.removeItem(LOCAL_TOKEN_KEY);
-      } catch (e) {}
+    if (confirm('Clear local cache on this device?')) {
+      try { localStorage.removeItem(LOCAL_VAULT_KEY); } catch (e) {}
       initLockScreen();
     }
   };
@@ -352,19 +365,10 @@ async function initLockScreen() {
   input.focus();
 }
 
-async function tryLoadSavedToken() {
-  try {
-    const enc = localStorage.getItem(LOCAL_TOKEN_KEY);
-    if (enc && cryptoKey) {
-      ghToken = await decryptString(cryptoKey, enc);
-    }
-  } catch (e) { ghToken = null; }
-}
-
 function unlock() {
   document.getElementById('lock-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  setSyncStatus(ghToken ? '' : '', ghToken ? 'Ready to sync' : 'No GitHub token on this device yet');
+  setSyncStatus(ghToken ? 'ok' : 'err', ghToken ? 'Synced with GitHub' : 'No token found in vault');
   render();
 }
 
@@ -397,12 +401,12 @@ function base32ToBytes(input) {
 
 function parseOtpAuthUrl(raw) {
   const trimmed = raw.trim();
-  if (!trimmed.toLowerCase().startsWith('otpauth://')) throw new Error("That doesn't look like an otpauth:// setup URL.");
+  if (!trimmed.toLowerCase().startsWith('otpauth://')) throw new Error("Invalid otpauth:// setup URL.");
   const asHttp = 'https://' + trimmed.slice('otpauth://'.length);
   const url = new URL(asHttp);
   const params = url.searchParams;
   const secret = params.get('secret');
-  if (!secret) throw new Error('No secret found in that URL.');
+  if (!secret) throw new Error('No secret key found in URL.');
   const rawLabel = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
   let issuer = params.get('issuer') || '';
   let account = rawLabel;
@@ -462,7 +466,7 @@ function render() {
   if (accounts.length === 0 && !showingAddForm) {
     const empty = document.createElement('div');
     empty.className = 'empty-msg';
-    empty.textContent = 'No accounts yet. Add one below with a setup key or otpauth:// URL.';
+    empty.textContent = 'No accounts yet. Click "Add account" below to store your first key.';
     container.appendChild(empty);
   }
 
@@ -501,23 +505,37 @@ function render() {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="card-top"><span class="service-name">Add account</span></div>
+      <div class="card-top"><span class="service-name">Add new account</span></div>
       <div class="add-form">
-        <input type="text" placeholder="Setup key or otpauth:// URL" id="new-account-input" />
-        ${!ghToken ? `
-        <input type="password" placeholder="GitHub token (to save across devices)" id="new-account-token" />
-        <div class="checkbox-row"><input type="checkbox" id="remember-token" checked /><label for="remember-token">Remember token on this device</label></div>
-        ` : ''}
+        <input type="text" placeholder="Service Name (e.g., Google, GitHub)" id="new-issuer-input" />
+        <input type="text" placeholder="Account Name / Email (e.g., user@gmail.com)" id="new-label-input" />
+        <input type="text" placeholder="Setup Key or otpauth:// URL" id="new-secret-input" />
+        
         <div class="add-form-row">
-          <button data-action="save-new">Add</button>
+          <button data-action="save-new">Save Account</button>
           <button class="secondary" data-action="cancel-new">Cancel</button>
         </div>
         <div class="error-msg" id="new-account-error"></div>
-        <div class="hint">${ghToken ? 'This device already has a saved token, so this syncs automatically.' : 'Paste your GitHub token so this syncs to your other devices too.'}</div>
+        <div class="hint">Your key will be encrypted and saved across all connected devices automatically.</div>
       </div>`;
     container.appendChild(card);
     addBtn.style.display = 'none';
-    setTimeout(() => document.getElementById('new-account-input')?.focus(), 0);
+    
+    const secretInput = document.getElementById('new-secret-input');
+    secretInput.addEventListener('input', () => {
+      const raw = secretInput.value.trim();
+      if (raw.toLowerCase().startsWith('otpauth://')) {
+        try {
+          const parsed = parseOtpAuthUrl(raw);
+          const issuerEl = document.getElementById('new-issuer-input');
+          const labelEl = document.getElementById('new-label-input');
+          if (parsed.issuer && issuerEl) issuerEl.value = parsed.issuer;
+          if (parsed.label && labelEl) labelEl.value = parsed.label;
+        } catch(e) {}
+      }
+    });
+
+    setTimeout(() => document.getElementById('new-issuer-input')?.focus(), 0);
   } else {
     addBtn.style.display = 'flex';
   }
@@ -548,28 +566,28 @@ function wireEvents(container) {
   const saveBtn = container.querySelector('[data-action="save-new"]');
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
-      const input = document.getElementById('new-account-input');
-      const tokenInput = document.getElementById('new-account-token');
-      const rememberBox = document.getElementById('remember-token');
+      const issuerInput = document.getElementById('new-issuer-input');
+      const labelInput = document.getElementById('new-label-input');
+      const secretInput = document.getElementById('new-secret-input');
       const errEl = document.getElementById('new-account-error');
-      const raw = input.value.trim();
-      try {
-        let parsed;
-        if (raw.toLowerCase().startsWith('otpauth://')) {
-          parsed = parseOtpAuthUrl(raw);
-        } else {
-          if (!raw) throw new Error('Enter a setup key or otpauth:// URL.');
-          parsed = { secret: raw, issuer: 'Account', label: '', algorithm: 'SHA1', digits: 6, period: 30 };
-        }
-        parsed.id = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+      
+      const rawSecret = secretInput.value.trim();
+      const customIssuer = issuerInput.value.trim();
+      const customLabel = labelInput.value.trim();
 
-        if (tokenInput && tokenInput.value.trim()) {
-          ghToken = tokenInput.value.trim();
-          if (rememberBox && rememberBox.checked) {
-            const encToken = await encryptString(cryptoKey, ghToken);
-            try { localStorage.setItem(LOCAL_TOKEN_KEY, encToken); } catch (e) {}
-          }
+      try {
+        let parsed = { algorithm: 'SHA1', digits: 6, period: 30 };
+        
+        if (rawSecret.toLowerCase().startsWith('otpauth://')) {
+          parsed = parseOtpAuthUrl(rawSecret);
+        } else {
+          if (!rawSecret) throw new Error('Setup key or URL is required.');
+          parsed.secret = rawSecret;
         }
+
+        parsed.issuer = customIssuer || parsed.issuer || 'Account';
+        parsed.label = customLabel || parsed.label || '';
+        parsed.id = 'acc-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
 
         accounts.push(parsed);
         showingAddForm = false;
