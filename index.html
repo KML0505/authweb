@@ -103,20 +103,11 @@
 <script>
 /* =========================================================================
    1. SAFE PUBLIC ENCRYPTED PAYLOAD
-   (Paste your generated output object here)
    ========================================================================= */
-/* Example format once generated:
 const ENCRYPTED_VAULT = {
-  "salt": "...",
-  "iv": "...",
-  "ciphertext": "..."
+  // PASTE YOUR GENERATED VAULT OBJECT HERE
 };
-*/
-const ENCRYPTED_VAULT = {
-  "salt": "2IBgar3Q+W2EwkOxmhsHGw==",
-  "iv": "JAEE1GhvsKgr5mHK",
-  "ciphertext": "ozkO/RS+JAnGCq0S6Z2gCwIW5uuO2pJ00p5QGsON0UMrpvjL2B2JKHj5dds6dXX3IqoqcJEpMrA1kZn+6ZtDn8N+B3uxgdor4EufsALMYy4iYhzXBZ0CtJCW5mj1Nuvh4lEwpL3PurfvwkF5gNdntMl3YaF8yXjkWtoQt8U8nku6mD/aXMPuk4GECeE+UwhCg/T01yfpVph0twQRdsA="
-};
+
 let decryptedSecrets = null;
 
 /* =========================================================================
@@ -138,6 +129,10 @@ function bufToB64(buf) {
     binStr += String.fromCharCode(bytes[i]);
   }
   return btoa(binStr);
+}
+
+function cleanBase32(input) {
+  return (input || '').toString().toUpperCase().replace(/[^A-Z2-7]/g, '');
 }
 
 async function deriveKey(password, salt) {
@@ -163,7 +158,7 @@ async function decryptVault(password) {
     if (parsed.canary !== 'VALID_VAULT_v1') return null;
     return parsed;
   } catch (e) {
-    return null; // Decryption failed (Wrong password)
+    return null;
   }
 }
 
@@ -174,8 +169,8 @@ async function encryptPayload(password, googleSecret, githubSecret) {
 
   const payload = JSON.stringify({
     canary: 'VALID_VAULT_v1',
-    google: googleSecret.toUpperCase().replace(/[^A-Z2-7]/g, ''),
-    github: githubSecret.toUpperCase().replace(/[^A-Z2-7]/g, '')
+    google: cleanBase32(googleSecret),
+    github: cleanBase32(githubSecret)
   });
 
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(payload));
@@ -189,35 +184,48 @@ async function encryptPayload(password, googleSecret, githubSecret) {
 
 function base32ToBytes(input) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  const clean = cleanBase32(input);
+  if (!clean) return new Uint8Array(0);
+
   let bits = '';
   for (const ch of clean) {
     const val = alphabet.indexOf(ch);
     if (val !== -1) bits += val.toString(2).padStart(5, '0');
   }
   const bytes = [];
-  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  }
   return new Uint8Array(bytes);
 }
 
 async function getTotpCode(secret) {
+  const cleanSecret = cleanBase32(secret);
+  if (!cleanSecret) return 'ERR-KEY';
+
   const counter = Math.floor(Date.now() / 1000 / 30);
   const buf = new ArrayBuffer(8);
   const view = new DataView(buf);
   view.setUint32(4, counter, false);
   
-  const keyBytes = base32ToBytes(secret);
+  const keyBytes = base32ToBytes(cleanSecret);
+  if (keyBytes.length === 0) return 'ERR-KEY';
+
   const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
   const sig = await crypto.subtle.sign('HMAC', key, new Uint8Array(buf));
   const h = new Uint8Array(sig);
 
   const offset = h[h.length - 1] & 0xf;
-  const bin = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
+  const bin = ((h[offset] & 0x7f) << 24) | 
+              ((h[offset + 1] & 0xff) << 16) | 
+              ((h[offset + 2] & 0xff) << 8) | 
+              (h[offset + 3] & 0xff);
+              
   return (bin % 1000000).toString().padStart(6, '0');
 }
 
 /* =========================================================================
-   3. UI & VIEW CONTROLLERS
+   3. UI CONTROLLERS
    ========================================================================= */
 const modeUnlock = document.getElementById('mode-unlock');
 const modeSetup = document.getElementById('mode-setup');
@@ -239,8 +247,8 @@ document.getElementById('back-unlock-btn').addEventListener('click', () => {
 
 document.getElementById('generate-btn').addEventListener('click', async () => {
   const pass = document.getElementById('setup-pass').value;
-  const google = document.getElementById('setup-google').value.trim();
-  const github = document.getElementById('setup-github').value.trim();
+  const google = document.getElementById('setup-google').value;
+  const github = document.getElementById('setup-github').value;
   const errEl = document.getElementById('setup-error');
   
   errEl.textContent = '';
@@ -315,7 +323,7 @@ function render() {
     
     card.querySelector('.code').addEventListener('click', () => {
       const code = document.getElementById(`code-${acc.id}`).textContent;
-      if (code !== '------') {
+      if (code !== '------' && !code.startsWith('ERR-')) {
         navigator.clipboard.writeText(code);
         const toast = document.getElementById(`toast-${acc.id}`);
         toast.classList.add('show');
