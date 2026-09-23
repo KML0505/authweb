@@ -1,2 +1,2 @@
 # authweb
-minauth.github.io
+i'm lazy
