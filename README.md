@@ -1,2 +1,2 @@
 # authweb
-minlim.duckdns.org
+minauth.github.io
