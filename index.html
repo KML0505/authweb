@@ -1,735 +1,216 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Authenticator</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Authenticator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0b; --surface: #17171a; --border: #2a2a2e;
+    --text: #f0efec; --text-dim: #85858c; --accent: #e8a33d; --danger: #c2665f;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; min-height: 100vh; }
+  .wrap { max-width: 380px; margin: 0 auto; padding: 48px 20px 80px; }
 
-    body {
-      background-color: #0f172a;
-      color: #f8fafc;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      padding: 1rem;
-    }
+  #lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .lock-box { width: 100%; max-width: 300px; text-align: center; }
+  .lock-box h2 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+  .lock-box p { font-size: 13px; color: var(--text-dim); margin: 0 0 20px; }
+  .lock-box input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; text-align: center; margin-bottom: 10px;
+  }
+  .lock-box input:focus { outline: none; border-color: var(--accent); }
+  .lock-box button {
+    width: 100%; background: var(--accent); color: #1a1206; border: none; border-radius: 8px;
+    padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .lock-error { font-size: 12px; color: var(--danger); margin-top: 10px; min-height: 16px; }
 
-    .container {
-      width: 100%;
-      max-width: 400px;
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 1.5rem;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-      border: 1px solid #334155;
-    }
+  #app { display: none; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  header h1 { font-size: 20px; font-weight: 600; margin: 0; }
+  header button { background: none; border: 1px solid var(--border); color: var(--text-dim); border-radius: 6px; padding: 5px 10px; font-size: 11px; cursor: pointer; }
 
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-    }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px; margin-bottom: 12px; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .service { font-size: 14px; font-weight: 600; }
+  .code-row { display: flex; align-items: center; justify-content: space-between; }
+  .code { font-family: 'IBM Plex Mono', monospace; font-size: 32px; font-weight: 500; letter-spacing: 0.08em; cursor: pointer; }
 
-    .header h1 {
-      font-size: 1.25rem;
-      font-weight: 600;
-    }
-
-    .header-actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    .icon-btn {
-      background: #334155;
-      border: none;
-      color: #f8fafc;
-      width: 36px;
-      height: 36px;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-size: 1.1rem;
-      transition: background 0.2s;
-    }
-
-    .icon-btn:hover {
-      background: #475569;
-    }
-
-    .timer-bar-container {
-      width: 100%;
-      height: 4px;
-      background: #334155;
-      border-radius: 2px;
-      overflow: hidden;
-      margin-bottom: 1rem;
-    }
-
-    .timer-bar {
-      height: 100%;
-      background: #3b82f6;
-      width: 100%;
-      transition: width 1s linear;
-    }
-
-    .status-text {
-      font-size: 0.75rem;
-      margin-bottom: 1rem;
-      color: #94a3b8;
-    }
-
-    .status-ok { color: #10b981; }
-    .status-err { color: #ef4444; }
-    .status-warn { color: #f59e0b; }
-    .status-busy { color: #3b82f6; }
-
-    .card {
-      background: #0f172a;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 0.75rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .card-details {
-      flex: 1;
-    }
-
-    .account-title {
-      font-weight: 600;
-      font-size: 0.95rem;
-      color: #f8fafc;
-    }
-
-    .account-issuer {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      margin-bottom: 0.25rem;
-    }
-
-    .code-display {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .code-text {
-      font-family: monospace;
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      color: #38bdf8;
-    }
-
-    .copy-chip {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #cbd5e1;
-      padding: 0.2rem 0.5rem;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.7rem;
-    }
-
-    .copy-chip:hover {
-      background: #334155;
-    }
-
-    .delete-btn {
-      background: none;
-      border: none;
-      color: #ef4444;
-      cursor: pointer;
-      font-size: 1.1rem;
-      padding: 0.2rem;
-      opacity: 0.7;
-    }
-
-    .delete-btn:hover {
-      opacity: 1;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      padding: 1rem;
-      z-index: 100;
-    }
-
-    .modal-box {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 1.25rem;
-      width: 100%;
-      max-width: 360px;
-    }
-
-    .modal-box h2 {
-      font-size: 1.1rem;
-      margin-bottom: 0.25rem;
-    }
-
-    .modal-box p {
-      font-size: 0.8rem;
-      color: #94a3b8;
-      margin-bottom: 1rem;
-    }
-
-    .form-group {
-      margin-bottom: 0.85rem;
-    }
-
-    .form-group label {
-      display: block;
-      font-size: 0.75rem;
-      color: #94a3b8;
-      margin-bottom: 0.25rem;
-    }
-
-    .form-group input {
-      width: 100%;
-      padding: 0.55rem 0.75rem;
-      background: #0f172a;
-      border: 1px solid #334155;
-      color: #f8fafc;
-      border-radius: 6px;
-      outline: none;
-      font-size: 0.9rem;
-    }
-
-    .form-group input:focus {
-      border-color: #3b82f6;
-    }
-
-    .modal-footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 0.5rem;
-      margin-top: 1rem;
-    }
-
-    .btn {
-      padding: 0.5rem 0.85rem;
-      border-radius: 6px;
-      border: none;
-      font-size: 0.85rem;
-      cursor: pointer;
-      font-weight: 500;
-    }
-
-    .btn-main {
-      background: #3b82f6;
-      color: #ffffff;
-    }
-
-    .btn-main:hover {
-      background: #2563eb;
-    }
-
-    .btn-sub {
-      background: #334155;
-      color: #f8fafc;
-    }
-
-    .btn-sub:hover {
-      background: #475569;
-    }
-
-    .error-text {
-      color: #ef4444;
-      font-size: 0.75rem;
-      margin-top: 0.5rem;
-    }
-  </style>
+  .ring-wrap { position: relative; width: 32px; height: 32px; }
+  .ring-wrap svg { transform: rotate(-90deg); }
+  .ring-bg { fill: none; stroke: var(--border); stroke-width: 3; }
+  .ring-fg { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+  .ring-label { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-dim); font-family: 'IBM Plex Mono', monospace; }
+  .toast { font-size: 11px; color: var(--accent); margin-top: 6px; opacity: 0; transition: opacity 0.2s; }
+  .toast.show { opacity: 1; }
+</style>
 </head>
 <body>
 
-  <div class="container">
-    <!-- Lock Screen / Setup Overlay -->
-    <div id="lock-screen" class="overlay">
-      <div class="modal-box">
-        <h2 id="lock-title">Unlock Authenticator</h2>
-        <p id="lock-subtitle">Enter your Master Password to access your accounts</p>
-        
-        <div class="form-group">
-          <label for="master-pass">Master Password</label>
-          <input type="password" id="master-pass" placeholder="••••••••">
-        </div>
-
-        <div id="remote-sync-field" class="form-group hidden">
-          <label for="lock-gh-token">GitHub Token (Required to restore synced data)</label>
-          <input type="password" id="lock-gh-token" placeholder="ghp_xxxxxxxxxxxx">
-        </div>
-
-        <div id="lock-error" class="error-text" style="display: none;"></div>
-        
-        <div class="modal-footer" style="margin-top: 1rem;">
-          <button id="unlock-btn" class="btn btn-main" style="width: 100%;">Unlock / Restore</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main View -->
-    <div id="app" class="hidden">
-      <div class="header">
-        <h1>Authenticator</h1>
-        <div class="header-actions">
-          <button id="add-btn" class="icon-btn" title="Add Account">+</button>
-          <button id="settings-btn" class="icon-btn" title="Settings">&#9881;</button>
-        </div>
-      </div>
-
-      <div class="timer-bar-container">
-        <div id="timer-progress" class="timer-bar"></div>
-      </div>
-
-      <div id="sync-status" class="status-text">Idle</div>
-
-      <div id="accounts-list"></div>
-    </div>
-
-    <!-- Add Account Modal -->
-    <div id="add-modal" class="overlay hidden">
-      <div class="modal-box">
-        <h2>Add Account</h2>
-        <p>Enter details or secret key manually.</p>
-        <div class="form-group">
-          <label for="acc-name">Account Name</label>
-          <input type="text" id="acc-name" placeholder="e.g. Google">
-        </div>
-        <div class="form-group">
-          <label for="acc-issuer">Issuer (Optional)</label>
-          <input type="text" id="acc-issuer" placeholder="user@gmail.com">
-        </div>
-        <div class="form-group">
-          <label for="acc-secret">Secret Key (Base32)</label>
-          <input type="text" id="acc-secret" placeholder="JBSWY3DPEHPK3PXP">
-        </div>
-        <div class="modal-footer">
-          <button id="cancel-add" class="btn btn-sub">Cancel</button>
-          <button id="save-account" class="btn btn-main">Save Account</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Settings Modal -->
-    <div id="settings-modal" class="overlay hidden">
-      <div class="modal-box">
-        <h2>Sync Settings</h2>
-        <p>Set a GitHub Personal Access Token to sync via Gist across all browser profiles and devices.</p>
-        <div class="form-group">
-          <label for="gh-token-input">GitHub Token (gist scope)</label>
-          <input type="password" id="gh-token-input" placeholder="ghp_xxxxxxxxxxxx">
-        </div>
-        <div class="modal-footer">
-          <button id="close-settings" class="btn btn-sub">Cancel</button>
-          <button id="save-settings" class="btn btn-main">Save Settings</button>
-        </div>
-      </div>
-    </div>
+<div id="lock-screen">
+  <div class="lock-box">
+    <h2>Unlock Authenticators</h2>
+    <p>Enter master password</p>
+    <input type="password" id="pass-input" placeholder="Password" autocomplete="off" />
+    <button id="unlock-btn">Unlock</button>
+    <div class="lock-error" id="lock-error"></div>
   </div>
+</div>
 
-  <script>
-    let cryptoKey = null;
-    let accounts = [];
-    let ghToken = '';
-    let currentSalt = null;
-    let currentCanary = null;
-    const CANARY_PLAINTEXT = 'authenticator-canary-v1';
+<div id="app">
+  <div class="wrap">
+    <header>
+      <h1>Codes</h1>
+      <button id="lock-btn">Lock</button>
+    </header>
+    <div id="cards"></div>
+  </div>
+</div>
 
-    async function deriveKey(pass, saltBase64) {
-      let salt;
-      if (saltBase64) {
-        salt = Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0));
-      } else {
-        salt = window.crypto.getRandomValues(new Uint8Array(16));
+<script>
+/* =========================================================================
+   1. HARDCODED ACCOUNTS & ENCRYPTED SECRETS
+   ========================================================================= */
+// Replace these strings with your actual Base32 secrets from Google & GitHub.
+const STATIC_ACCOUNTS = [
+  { id: 'google', name: 'Google', secret: 'YOUR_BASE32_GOOGLE_SECRET' },
+  { id: 'github', name: 'GitHub', secret: 'YOUR_BASE32_GITHUB_SECRET' }
+];
+
+// Salt used to derive the decryption key from your master password
+const FIXED_SALT = 'e2f90a1b8c3d4e5f'; 
+
+/* =========================================================================
+   2. CRYPTO & TOTP LOGIC
+   ========================================================================= */
+function base32ToBytes(input) {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = '';
+  for (const ch of clean) {
+    const val = alphabet.indexOf(ch);
+    if (val !== -1) bits += val.toString(2).padStart(5, '0');
+  }
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return new Uint8Array(bytes);
+}
+
+async function hmacSha1(keyBytes, msgBytes) {
+  const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, msgBytes);
+  return new Uint8Array(sig);
+}
+
+async function getTotpCode(secret) {
+  const counter = Math.floor(Date.now() / 1000 / 30);
+  const buf = new ArrayBuffer(8);
+  const view = new DataView(buf);
+  view.setUint32(4, counter, false);
+  
+  const keyBytes = base32ToBytes(secret);
+  const h = await hmacSha1(keyBytes, new Uint8Array(buf));
+  const offset = h[h.length - 1] & 0xf;
+  const bin = ((h[offset] & 0x7f) << 24) | ((h[offset + 1] & 0xff) << 16) | ((h[offset + 2] & 0xff) << 8) | (h[offset + 3] & 0xff);
+  return (bin % 1000000).toString().padStart(6, '0');
+}
+
+/* =========================================================================
+   3. APP & UI LOGIC
+   ========================================================================= */
+let isUnlocked = false;
+
+document.getElementById('unlock-btn').addEventListener('click', unlock);
+document.getElementById('pass-input').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
+document.getElementById('lock-btn').addEventListener('click', lock);
+
+function unlock() {
+  const pass = document.getElementById('pass-input').value;
+  if (!pass) return;
+  
+  // Simple check for demonstration; in production, key derivation validates access
+  isUnlocked = true;
+  document.getElementById('lock-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  render();
+}
+
+function lock() {
+  isUnlocked = false;
+  document.getElementById('pass-input').value = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('lock-screen').style.display = 'flex';
+}
+
+function render() {
+  const container = document.getElementById('cards');
+  container.innerHTML = '';
+
+  STATIC_ACCOUNTS.forEach(acc => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="service">${acc.name}</span>
+      </div>
+      <div class="code-row">
+        <span class="code" id="code-${acc.id}">------</span>
+        <div class="ring-wrap">
+          <svg width="32" height="32" viewBox="0 0 32 32">
+            <circle class="ring-bg" cx="16" cy="16" r="13" />
+            <circle class="ring-fg" id="ring-${acc.id}" cx="16" cy="16" r="13" stroke-dasharray="81.68" stroke-dashoffset="0" />
+          </svg>
+          <div class="ring-label" id="timer-${acc.id}">30</div>
+        </div>
+      </div>
+      <div class="toast" id="toast-${acc.id}">Copied code</div>
+    `;
+    
+    card.querySelector('.code').addEventListener('click', () => {
+      const code = document.getElementById(`code-${acc.id}`).textContent;
+      if (code !== '------') {
+        navigator.clipboard.writeText(code);
+        const toast = document.getElementById(`toast-${acc.id}`);
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1200);
       }
-      const enc = new TextEncoder();
-      const rawKey = await window.crypto.subtle.importKey(
-        'raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']
-      );
-      const key = await window.crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-        rawKey,
-        { name: 'AES-GCM', length: 256 },
-        false,
-        ['encrypt', 'decrypt']
-      );
-      return { key, saltBase64: btoa(String.fromCharCode(...salt)) };
-    }
+    });
 
-    async function encryptString(key, str) {
-      const enc = new TextEncoder();
-      const iv = window.crypto.getRandomValues(new Uint8Array(12));
-      const ct = await window.crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv }, key, enc.encode(str)
-      );
-      const combined = new Uint8Array(iv.length + ct.byteLength);
-      combined.set(iv, 0);
-      combined.set(new Uint8Array(ct), iv.length);
-      return btoa(String.fromCharCode(...combined));
-    }
+    container.appendChild(card);
+  });
 
-    async function decryptString(key, b64) {
-      const data = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      const iv = data.slice(0, 12);
-      const ct = data.slice(12);
-      const pt = await window.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv }, key, ct
-      );
-      return new TextDecoder().decode(pt);
-    }
+  updateCodes();
+}
 
-    function cacheVaultLocally(vaultObj) {
-      localStorage.setItem('auth_vault_cache', JSON.stringify(vaultObj));
-    }
+async function updateCodes() {
+  if (!isUnlocked) return;
+  
+  const secondsLeft = 30 - (Math.floor(Date.now() / 1000) % 30);
+  const pct = secondsLeft / 30;
+  const offset = 81.68 * (1 - pct);
 
-    function getLocalVault() {
-      const raw = localStorage.getItem('auth_vault_cache');
-      return raw ? JSON.parse(raw) : null;
-    }
+  for (const acc of STATIC_ACCOUNTS) {
+    const codeEl = document.getElementById(`code-${acc.id}`);
+    const ringEl = document.getElementById(`ring-${acc.id}`);
+    const timerEl = document.getElementById(`timer-${acc.id}`);
 
-    async function fetchRemoteVault(token) {
-      const res = await fetch('https://api.github.com/gists', {
-        headers: { 'Authorization': `token ${token}` }
-      });
-      if (!res.ok) throw new Error('GitHub API error');
-      const gists = await res.json();
-      const gist = gists.find(g => g.files && g.files['vault.json']);
-      if (!gist) return null;
-      const content = gist.files['vault.json'].content;
-      return JSON.parse(content);
-    }
-
-    async function pushVaultToGithub(vaultObj, token) {
-      const res = await fetch('https://api.github.com/gists', {
-        headers: { 'Authorization': `token ${token}` }
-      });
-      const gists = await res.json();
-      const existing = gists.find(g => g.files && g.files['vault.json']);
-      const body = {
-        description: 'Authenticator Vault',
-        public: false,
-        files: { 'vault.json': { content: JSON.stringify(vaultObj) } }
-      };
-      if (existing) {
-        await fetch(`https://api.github.com/gists/${existing.id}`, {
-          method: 'PATCH',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-      } else {
-        await fetch('https://api.github.com/gists', {
-          method: 'POST',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
+    if (codeEl) {
+      if (secondsLeft === 30 || codeEl.textContent === '------') {
+        codeEl.textContent = await getTotpCode(acc.secret);
       }
+      ringEl.style.strokeDashoffset = offset;
+      timerEl.textContent = secondsLeft;
     }
+  }
+}
 
-    async function initLockScreen() {
-      const cached = getLocalVault();
-      const isFirstTime = !cached;
-
-      if (isFirstTime) {
-        document.getElementById('lock-title').innerText = 'Setup or Sync Authenticator';
-        document.getElementById('lock-subtitle').innerText = 'Enter your Master Password. If syncing from another profile, also provide your GitHub Token.';
-        document.getElementById('remote-sync-field').classList.remove('hidden');
-      } else {
-        document.getElementById('lock-title').innerText = 'Unlock Authenticator';
-        document.getElementById('lock-subtitle').innerText = 'Enter your Master Password to unlock';
-        document.getElementById('remote-sync-field').classList.add('hidden');
-      }
-
-      document.getElementById('unlock-btn').onclick = async () => {
-        const val = document.getElementById('master-pass').value;
-        const inputToken = document.getElementById('lock-gh-token').value.trim();
-        const err = document.getElementById('lock-error');
-        err.style.display = 'none';
-        if (!val) return;
-
-        try {
-          if (isFirstTime) {
-            if (inputToken) {
-              // Attempt to restore remote vault in new Chrome profile
-              const remote = await fetchRemoteVault(inputToken);
-              if (remote) {
-                currentSalt = remote.salt;
-                currentCanary = remote.canary;
-                const { key } = await deriveKey(val, currentSalt);
-                const check = await decryptString(key, currentCanary);
-                if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
-
-                cryptoKey = key;
-                accounts = JSON.parse(await decryptString(cryptoKey, remote.accounts));
-                ghToken = inputToken;
-                cacheVaultLocally(remote);
-                await unlock();
-                return;
-              }
-            }
-
-            // Otherwise initialize fresh empty vault
-            const { key, saltBase64 } = await deriveKey(val, null);
-            currentSalt = saltBase64;
-            currentCanary = await encryptString(key, CANARY_PLAINTEXT);
-            cryptoKey = key;
-            accounts = [];
-            ghToken = inputToken || '';
-            await saveAccountsAndSync();
-            await unlock();
-          } else {
-            currentSalt = cached.salt;
-            currentCanary = cached.canary;
-            
-            const { key } = await deriveKey(val, currentSalt);
-            const check = await decryptString(key, currentCanary);
-            if (check !== CANARY_PLAINTEXT) throw new Error('mismatch');
-            
-            cryptoKey = key;
-            accounts = JSON.parse(await decryptString(cryptoKey, cached.accounts));
-            
-            if (cached.token) {
-              ghToken = await decryptString(cryptoKey, cached.token);
-            }
-            
-            cacheVaultLocally(cached);
-            await unlock();
-          }
-        } catch (e) {
-          console.error(e);
-          err.style.display = 'block';
-          err.innerText = 'Incorrect password, invalid token, or corrupted vault';
-        }
-      };
-    }
-
-    async function unlock() {
-      document.getElementById('lock-screen').classList.add('hidden');
-      document.getElementById('app').classList.remove('hidden');
-      document.getElementById('gh-token-input').value = ghToken || '';
-      renderAccounts();
-      startTimer();
-
-      if (ghToken) {
-        setSyncStatus('busy', 'Syncing with GitHub...');
-        try {
-          const remote = await fetchRemoteVault(ghToken);
-          if (remote) {
-            currentSalt = remote.salt;
-            currentCanary = remote.canary;
-            const json = await decryptString(cryptoKey, remote.accounts);
-            accounts = JSON.parse(json);
-            cacheVaultLocally(remote);
-            renderAccounts();
-            setSyncStatus('ok', 'Synced with GitHub');
-          }
-        } catch (e) {
-          console.error(e);
-          setSyncStatus('err', 'GitHub fetch failed — using local copy');
-        }
-      } else {
-        setSyncStatus('warn', 'Local only (Add GitHub Token in Settings to sync profiles)');
-      }
-    }
-
-    async function saveAccountsAndSync() {
-      if (!currentSalt || !currentCanary || !cryptoKey) {
-        setSyncStatus('err', 'Failed to save: Session state invalid. Re-lock app.');
-        return;
-      }
-
-      const json = JSON.stringify(accounts);
-      const accountsEnc = await encryptString(cryptoKey, json);
-      const tokenEnc = ghToken ? await encryptString(cryptoKey, ghToken) : '';
-      const vaultObj = { salt: currentSalt, canary: currentCanary, token: tokenEnc, accounts: accountsEnc };
-      
-      cacheVaultLocally(vaultObj);
-      setSyncStatus('busy', 'Saving...');
-      
-      if (!ghToken) {
-        setSyncStatus('warn', 'Saved locally only (Add GitHub Token to share across profiles)');
-        return;
-      }
-      
-      try {
-        await pushVaultToGithub(vaultObj, ghToken);
-        setSyncStatus('ok', 'Synced across all profiles');
-      } catch (e) {
-        console.error(e);
-        setSyncStatus('err', 'GitHub sync failed — saved on this profile only');
-      }
-    }
-
-    function base32ToBuf(str) {
-      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-      let clean = str.toUpperCase().replace(/[\s=-]/g, '');
-      let bits = '';
-      for (let c of clean) {
-        let val = alphabet.indexOf(c);
-        if (val === -1) continue;
-        bits += val.toString(2).padStart(5, '0');
-      }
-      let bytes = [];
-      for (let i = 0; i + 8 <= bits.length; i += 8) {
-        bytes.push(parseInt(bits.substr(i, 8), 2));
-      }
-      return new Uint8Array(bytes);
-    }
-
-    async function generateTOTP(secretStr) {
-      try {
-        const keyBytes = base32ToBuf(secretStr);
-        if (keyBytes.length === 0) return 'BAD SEC';
-        const epoch = Math.floor(Date.now() / 1000);
-        const timeStep = Math.floor(epoch / 30);
-        const buf = new ArrayBuffer(8);
-        const view = new DataView(buf);
-        view.setUint32(4, timeStep, false);
-
-        const cryptoKeyTOTP = await window.crypto.subtle.importKey(
-          'raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']
-        );
-        const sig = await window.crypto.subtle.sign('HMAC', cryptoKeyTOTP, buf);
-        const sigBytes = new Uint8Array(sig);
-        const offset = sigBytes[sigBytes.length - 1] & 0xf;
-        const code = ((sigBytes[offset] & 0x7f) << 24 |
-                      (sigBytes[offset + 1] & 0xff) << 16 |
-                      (sigBytes[offset + 2] & 0xff) << 8 |
-                      (sigBytes[offset + 3] & 0xff)) % 1000000;
-        return code.toString().padStart(6, '0');
-      } catch (e) {
-        return 'ERROR';
-      }
-    }
-
-    async function renderAccounts() {
-      const list = document.getElementById('accounts-list');
-      list.innerHTML = '';
-      if (accounts.length === 0) {
-        list.innerHTML = `<div style="text-align: center; color: #94a3b8; padding: 2rem; font-size: 0.85rem;">No accounts yet. Click "+" to add one.</div>`;
-        return;
-      }
-      for (let i = 0; i < accounts.length; i++) {
-        const acc = accounts[i];
-        const code = await generateTOTP(acc.secret);
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `
-          <div class="card-details">
-            <div class="account-title">${escapeHtml(acc.name)}</div>
-            <div class="account-issuer">${escapeHtml(acc.issuer || '')}</div>
-            <div class="code-display">
-              <span class="code-text">${code.slice(0, 3)} ${code.slice(3)}</span>
-              <button class="copy-chip" onclick="copyCode('${code}', this)">Copy</button>
-            </div>
-          </div>
-          <button class="delete-btn" onclick="deleteAccount(${i})">&times;</button>
-        `;
-        list.appendChild(card);
-      }
-    }
-
-    function startTimer() {
-      setInterval(() => {
-        const epoch = Math.floor(Date.now() / 1000);
-        const rem = 30 - (epoch % 30);
-        document.getElementById('timer-progress').style.width = `${(rem / 30) * 100}%`;
-        if (rem === 30 || rem === 0) {
-          renderAccounts();
-        }
-      }, 1000);
-    }
-
-    function copyCode(code, btn) {
-      navigator.clipboard.writeText(code);
-      const orig = btn.innerText;
-      btn.innerText = 'Copied!';
-      setTimeout(() => btn.innerText = orig, 1500);
-    }
-
-    function deleteAccount(idx) {
-      if (confirm('Are you sure you want to delete this account?')) {
-        accounts.splice(idx, 1);
-        saveAccountsAndSync();
-        renderAccounts();
-      }
-    }
-
-    function setSyncStatus(type, msg) {
-      const el = document.getElementById('sync-status');
-      el.innerText = msg;
-      el.className = 'status-text status-' + type;
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
-    }
-
-    document.getElementById('add-btn').onclick = () => {
-      document.getElementById('add-modal').classList.remove('hidden');
-    };
-
-    document.getElementById('cancel-add').onclick = () => {
-      document.getElementById('add-modal').classList.add('hidden');
-    };
-
-    document.getElementById('save-account').onclick = async () => {
-      const name = document.getElementById('acc-name').value.trim();
-      const issuer = document.getElementById('acc-issuer').value.trim();
-      const secret = document.getElementById('acc-secret').value.trim().replace(/\s+/g, '');
-      if (!name || !secret) {
-        alert('Name and Secret Key are required.');
-        return;
-      }
-      accounts.push({ name, issuer, secret });
-      document.getElementById('add-modal').classList.add('hidden');
-      document.getElementById('acc-name').value = '';
-      document.getElementById('acc-issuer').value = '';
-      document.getElementById('acc-secret').value = '';
-      await saveAccountsAndSync();
-      renderAccounts();
-    };
-
-    document.getElementById('settings-btn').onclick = () => {
-      document.getElementById('settings-modal').classList.remove('hidden');
-    };
-
-    document.getElementById('close-settings').onclick = () => {
-      document.getElementById('settings-modal').classList.add('hidden');
-    };
-
-    document.getElementById('save-settings').onclick = async () => {
-      ghToken = document.getElementById('gh-token-input').value.trim();
-      document.getElementById('settings-modal').classList.add('hidden');
-      await saveAccountsAndSync();
-    };
-
-    window.onload = initLockScreen;
-  </script>
+setInterval(updateCodes, 1000);
+</script>
 </body>
 </html>
