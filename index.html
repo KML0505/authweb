@@ -30,13 +30,14 @@
       color: var(--text);
       display: flex;
       justify-content: center;
+      align-items: center;
       padding: 2rem 1rem;
       min-height: 100vh;
     }
 
     .container {
       width: 100%;
-      max-width: 500px;
+      max-width: 450px;
     }
 
     .card {
@@ -46,6 +47,7 @@
       padding: 1.5rem;
       box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
       margin-bottom: 1.5rem;
+      position: relative;
     }
 
     h1, h2 {
@@ -87,7 +89,8 @@
     }
 
     button {
-      padding: 0.65rem 1rem;
+      width: 100%;
+      padding: 0.75rem;
       border: none;
       border-radius: 6px;
       font-weight: 500;
@@ -99,13 +102,14 @@
       align-items: center;
       justify-content: center;
       gap: 0.4rem;
+      font-size: 0.95rem;
     }
 
     button:hover { background-color: var(--primary-hover); }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.btn-danger { background-color: var(--danger); }
+    button.btn-danger { background-color: var(--danger); width: auto; }
     button.btn-danger:hover { background-color: var(--danger-hover); }
-    button.btn-secondary { background-color: var(--border); }
+    button.btn-secondary { background-color: var(--border); width: auto; }
     button.btn-secondary:hover { background-color: #475569; }
 
     .toolbar {
@@ -142,6 +146,16 @@
       font-size: 0.9rem;
     }
 
+    .settings-link {
+      display: block;
+      text-align: center;
+      margin-top: 1rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     .hidden { display: none !important; }
   </style>
 </head>
@@ -149,9 +163,20 @@
 
   <div class="container">
     
-    <!-- LOGIN / SETUP VIEW -->
+    <!-- UNLOCK VIEW (ONLY PASSWORD) -->
     <div id="authCard" class="card">
-      <h2>Vault Access</h2>
+      <h2>Unlock Vault</h2>
+      <div class="form-group">
+        <label for="masterPassword">Master Password</label>
+        <input type="password" id="masterPassword" placeholder="••••••••••••" autofocus />
+      </div>
+      <button id="unlockBtn" onclick="unlockVault()">🔓 Unlock Vault</button>
+      <span class="settings-link" onclick="toggleSettingsModal()">⚙️ GitHub Settings</span>
+    </div>
+
+    <!-- SETTINGS MODAL (HIDDEN BY DEFAULT) -->
+    <div id="settingsModal" class="card hidden">
+      <h2>GitHub Config</h2>
       <div class="form-group">
         <label for="githubUser">GitHub Username</label>
         <input type="text" id="githubUser" placeholder="octocat" />
@@ -164,11 +189,10 @@
         <label for="githubToken">GitHub PAT Token</label>
         <input type="password" id="githubToken" placeholder="ghp_xxxxxxxxxxxx" />
       </div>
-      <div class="form-group">
-        <label for="masterPassword">Master Password</label>
-        <input type="password" id="masterPassword" placeholder="••••••••••••" />
+      <div class="btn-group">
+        <button onclick="saveSettings()">Save Settings</button>
+        <button class="btn-secondary" onclick="toggleSettingsModal()">Cancel</button>
       </div>
-      <button id="unlockBtn" onclick="unlockVault()">🔓 Unlock Vault</button>
     </div>
 
     <!-- MAIN DASHBOARD VIEW -->
@@ -177,7 +201,7 @@
       <!-- ACTION TOOLBAR -->
       <div class="toolbar">
         <div class="btn-group">
-          <button onclick="toggleAddModal()">+ Add Account</button>
+          <button class="btn-secondary" onclick="toggleAddModal()">+ Add</button>
           
           <!-- 🔄 REFRESH SYNC BUTTON -->
           <button id="refreshBtn" class="btn-secondary" onclick="refreshVault()" title="Pull latest state from GitHub">
@@ -204,7 +228,7 @@
           <input type="text" id="newSecret" placeholder="JBSWY3DPEHPK3PXP" />
         </div>
         <div class="btn-group">
-          <button onclick="addAccount()">Save Account</button>
+          <button onclick="addAccount()" style="width: auto;">Save Account</button>
           <button class="btn-secondary" onclick="toggleAddModal()">Cancel</button>
         </div>
       </div>
@@ -212,7 +236,7 @@
       <!-- ACCOUNTS LIST -->
       <h2>Your 2FA Keys</h2>
       <div id="accountsList">
-        <!-- Accounts will render dynamically here -->
+        <!-- Accounts render dynamically here -->
       </div>
     </div>
 
@@ -220,23 +244,52 @@
 
   <script>
     // ==========================================
-    // GLOBAL STATE
+    // GLOBAL STATE & STORAGE KEYS
     // ==========================================
-    let masterKey = null;         // CryptoKey derived via PBKDF2
-    let currentSha = null;        // GitHub file SHA for conflict prevention
-    let accounts = [];            // Decrypted accounts list
-    let GITHUB_USER = "";
-    let GITHUB_REPO = "";
-    let userGithubToken = "";
+    let masterKey = null;         
+    let currentSha = null;        
+    let accounts = [];            
 
-    const SALT_STRING = "static_vault_salt_2026"; // PBKDF2 Salt
+    const SALT_STRING = "static_vault_salt_2026"; 
     const CANARY_PHRASE = "VAULT_VALID_CANARY";
+
+    // Load saved settings from localStorage on startup
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById('githubUser').value = localStorage.getItem('vault_gh_user') || '';
+      document.getElementById('githubRepo').value = localStorage.getItem('vault_gh_repo') || '';
+      document.getElementById('githubToken').value = localStorage.getItem('vault_gh_token') || '';
+      
+      // Allow pressing 'Enter' to submit password
+      document.getElementById('masterPassword').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') unlockVault();
+      });
+    });
+
+    function saveSettings() {
+      const u = document.getElementById('githubUser').value.trim();
+      const r = document.getElementById('githubRepo').value.trim();
+      const t = document.getElementById('githubToken').value.trim();
+
+      localStorage.setItem('vault_gh_user', u);
+      localStorage.setItem('vault_gh_repo', r);
+      localStorage.setItem('vault_gh_token', t);
+
+      toggleSettingsModal();
+      alert('Settings saved!');
+    }
+
+    function getGithubConfig() {
+      return {
+        user: localStorage.getItem('vault_gh_user') || '',
+        repo: localStorage.getItem('vault_gh_repo') || '',
+        token: localStorage.getItem('vault_gh_token') || ''
+      };
+    }
 
     // ==========================================
     // CRYPTOGRAPHY HELPERS (AES-GCM + PBKDF2)
     // ==========================================
 
-    // Derive AES key from password using PBKDF2
     async function deriveKey(password) {
       const encoder = new TextEncoder();
       const baseKey = await crypto.subtle.importKey(
@@ -261,7 +314,6 @@
       );
     }
 
-    // Encrypt string data to Base64 (IV + Ciphertext)
     async function encryptData(plainText, key) {
       const encoder = new TextEncoder();
       const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -271,7 +323,6 @@
         encoder.encode(plainText)
       );
 
-      // Combine IV and Ciphertext
       const combined = new Uint8Array(iv.length + encrypted.byteLength);
       combined.set(iv, 0);
       combined.set(new Uint8Array(encrypted), iv.length);
@@ -279,7 +330,6 @@
       return btoa(String.fromCharCode(...combined));
     }
 
-    // Decrypt Base64 encrypted payload
     async function decryptData(encryptedBase64, key) {
       const binaryString = atob(encryptedBase64);
       const combined = new Uint8Array(binaryString.length);
@@ -304,13 +354,16 @@
     // ==========================================
 
     async function unlockVault() {
-      GITHUB_USER = document.getElementById('githubUser').value.trim();
-      GITHUB_REPO = document.getElementById('githubRepo').value.trim();
-      userGithubToken = document.getElementById('githubToken').value.trim();
+      const config = getGithubConfig();
       const password = document.getElementById('masterPassword').value;
 
-      if (!GITHUB_USER || !GITHUB_REPO || !userGithubToken || !password) {
-        alert("Please fill in all setup fields.");
+      if (!config.user || !config.repo || !config.token) {
+        alert("GitHub configuration missing! Please click 'GitHub Settings' below to configure.");
+        return;
+      }
+
+      if (!password) {
+        alert("Please enter your master password.");
         return;
       }
 
@@ -321,17 +374,16 @@
       try {
         masterKey = await deriveKey(password);
 
-        // Fetch existing vault file from GitHub
-        const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/vault.json?t=${Date.now()}`;
+        // Fetch existing vault file from GitHub with cache-busting timestamp
+        const url = `https://api.github.com/repos/${config.user}/${config.repo}/contents/vault.json?t=${Date.now()}`;
         const response = await fetch(url, {
           headers: {
-            'Authorization': `token ${userGithubToken}`,
+            'Authorization': `token ${config.token}`,
             'Accept': 'application/vnd.github.v3+json'
           }
         });
 
         if (response.status === 404) {
-          // Vault does not exist yet; initialize empty vault
           accounts = [];
           await saveVaultToGithub();
         } else if (response.ok) {
@@ -341,20 +393,17 @@
           const rawContent = decodeURIComponent(escape(atob(data.content)));
           const vaultData = JSON.parse(rawContent);
 
-          // Test password validity with canary
           const canary = await decryptData(vaultData.canary, masterKey);
           if (canary !== CANARY_PHRASE) {
             throw new Error("Invalid password");
           }
 
-          // Decrypt account secrets
           const decryptedAccountsStr = await decryptData(vaultData.accounts, masterKey);
           accounts = JSON.parse(decryptedAccountsStr);
         } else {
           throw new Error(`GitHub API Error: ${response.statusText}`);
         }
 
-        // Display dashboard
         document.getElementById('authCard').classList.add('hidden');
         document.getElementById('dashboard').classList.remove('hidden');
         renderAccounts();
@@ -368,8 +417,8 @@
       }
     }
 
-    // Save/Push changes to GitHub vault.json
     async function saveVaultToGithub() {
+      const config = getGithubConfig();
       const canaryEncrypted = await encryptData(CANARY_PHRASE, masterKey);
       const accountsEncrypted = await encryptData(JSON.stringify(accounts), masterKey);
 
@@ -380,7 +429,7 @@
 
       const contentBase64 = btoa(unescape(encodeURIComponent(JSON.stringify(vaultPayload, null, 2))));
 
-      const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/vault.json`;
+      const url = `https://api.github.com/repos/${config.user}/${config.repo}/contents/vault.json`;
       const bodyData = {
         message: "Update 2FA vault",
         content: contentBase64
@@ -393,7 +442,7 @@
       const response = await fetch(url, {
         method: 'PUT',
         headers: {
-          'Authorization': `token ${userGithubToken}`,
+          'Authorization': `token ${config.token}`,
           'Accept': 'application/vnd.github.v3+json',
           'Content-Type': 'application/json'
         },
@@ -411,6 +460,7 @@
     // 🔄 REFRESH / PULL LATEST VAULT STATE FROM GITHUB
     async function refreshVault() {
       const refreshBtn = document.getElementById('refreshBtn');
+      const config = getGithubConfig();
 
       if (!masterKey) {
         alert('Please unlock your vault first.');
@@ -423,11 +473,10 @@
       }
 
       try {
-        // Cache-buster query parameter (?t=...) forces a fresh fetch from GitHub
-        const url = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/contents/vault.json?t=${Date.now()}`;
+        const url = `https://api.github.com/repos/${config.user}/${config.repo}/contents/vault.json?t=${Date.now()}`;
         const response = await fetch(url, {
           headers: {
-            'Authorization': `token ${userGithubToken}`,
+            'Authorization': `token ${config.token}`,
             'Accept': 'application/vnd.github.v3+json'
           }
         });
@@ -438,20 +487,14 @@
 
         const data = await response.json();
 
-        // Base64 decode raw file payload
         const rawContent = decodeURIComponent(escape(atob(data.content)));
         const vaultData = JSON.parse(rawContent);
 
-        // Decrypt accounts using current master key
         const decryptedAccountsStr = await decryptData(vaultData.accounts, masterKey);
         
-        // Update local memory
         accounts = JSON.parse(decryptedAccountsStr);
-
-        // Update active file SHA to avoid future write conflicts
         currentSha = data.sha;
 
-        // Update UI
         renderAccounts();
 
       } catch (error) {
@@ -510,13 +553,12 @@
         renderAccounts();
         toggleAddModal();
         
-        // Clear input fields
         document.getElementById('newIssuer').value = '';
         document.getElementById('newAccount').value = '';
         document.getElementById('newSecret').value = '';
       } catch (err) {
         alert("Failed to update vault on GitHub: " + err.message);
-        accounts.pop(); // Rollback local change if remote save fails
+        accounts.pop(); 
       }
     }
 
@@ -530,13 +572,17 @@
         renderAccounts();
       } catch (err) {
         alert("Failed to update vault on GitHub: " + err.message);
-        accounts.splice(index, 0, removed[0]); // Rollback on failure
+        accounts.splice(index, 0, removed[0]); 
       }
     }
 
     function toggleAddModal() {
-      const form = document.getElementById('addAccountForm');
-      form.classList.toggle('hidden');
+      document.getElementById('addAccountForm').classList.toggle('hidden');
+    }
+
+    function toggleSettingsModal() {
+      document.getElementById('authCard').classList.toggle('hidden');
+      document.getElementById('settingsModal').classList.toggle('hidden');
     }
 
     function lockVault() {
